@@ -29,7 +29,7 @@ def example_1_basic():
         # Save
         filler.save("filled_form.pdf")
 
-    print("✓ Basic form filled!")
+    print("Done: Basic form filled!")
 
 
 def example_2_method_chaining():
@@ -45,7 +45,7 @@ def example_2_method_chaining():
               .check_box("newsletter") \
               .save("chained_form.pdf")
 
-    print("✓ Form filled with method chaining!")
+    print("Done: Form filled with method chaining!")
 
 
 def example_3_bulk_filling():
@@ -75,7 +75,7 @@ def example_3_bulk_filling():
         # Save
         filler.save("bulk_filled.pdf")
 
-    print("✓ Bulk filling complete!")
+    print("Done: Bulk filling complete!")
 
 
 def example_4_discover_fields():
@@ -89,7 +89,7 @@ def example_4_discover_fields():
 
         print(f"\nFound {len(fields)} fields:\n")
         for field in fields:
-            print(f"  • {field['name']}")
+            print(f"  -{field['name']}")
             print(f"    Type: {field['type']}")
             if field['value']:
                 print(f"    Current value: {field['value']}")
@@ -115,7 +115,7 @@ def example_5_preserve_existing():
 
         filler.save("preserved_form.pdf")
 
-    print("✓ Form filled, existing values preserved!")
+    print("Done: Form filled, existing values preserved!")
 
 
 def example_6_field_validation():
@@ -131,7 +131,7 @@ def example_6_field_validation():
 
         print("\nValidation results:")
         for field_name, exists in results.items():
-            status = "✓ Exists" if exists else "✗ Not found"
+            status = "Exists" if exists else "Not found"
             print(f"  {field_name}: {status}")
 
 

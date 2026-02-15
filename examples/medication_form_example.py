@@ -61,8 +61,8 @@ def fill_medication_form():
         # Save with flattening
         output_path = filler.save(output_pdf, flatten=True)
 
-        print(f"✓ Medication form filled successfully!")
-        print(f"✓ Saved to: {output_path}")
+        print(f"Done: Medication form filled successfully!")
+        print(f"Saved to: {output_path}")
 
 
 def fill_from_json():
@@ -101,7 +101,7 @@ def fill_from_json():
     with open("medication_values.json", "w") as f:
         json.dump(config, f, indent=2)
 
-    print("✓ Created medication_values.json")
+    print("Done: Created medication_values.json")
     print("\nYou can now use it with:")
     print("  pdfiller fill -i form.pdf -j medication_values.json -o filled.pdf --preserve-existing")
 
