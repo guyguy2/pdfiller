@@ -146,7 +146,7 @@ def template_command(args):
                 field_name = field['name']
                 field_type = field['type']
 
-                if 'Button' in field_type:
+                if field_type in ('CheckBox', 'Button'):
                     template['checkboxes'].append(field_name)
                 else:
                     template['fields'][field_name] = ""
