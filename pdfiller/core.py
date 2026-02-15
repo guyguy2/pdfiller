@@ -4,33 +4,10 @@ Core functionality for PDF form filling
 
 import fitz  # PyMuPDF
 from typing import Dict, List, Optional, Tuple, Union, Any
-from dataclasses import dataclass
 from pathlib import Path
 from datetime import datetime
 
 from .exceptions import PDFFillerError, FieldNotFoundError, PDFReadError, PDFWriteError
-
-
-@dataclass
-class PDFField:
-    """Represents a PDF form field"""
-    name: str
-    value: Any
-
-    def __repr__(self):
-        return f"PDFField(name='{self.name}', value='{self.value}')"
-
-
-@dataclass
-class CheckboxField(PDFField):
-    """Represents a checkbox field"""
-    checked: bool = False
-
-    def __post_init__(self):
-        self.value = self.checked
-
-    def __repr__(self):
-        return f"CheckboxField(name='{self.name}', checked={self.checked})"
 
 
 class PDFFiller:
