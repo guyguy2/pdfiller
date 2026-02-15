@@ -1,0 +1,21 @@
+"""
+PDFiller - A simple library for filling PDF forms
+Handles both fillable and non-fillable PDFs with automatic flattening for compatibility
+"""
+
+from .core import PDFFiller, PDFField, CheckboxField
+from .exceptions import PDFFillerError, FieldNotFoundError
+from .memory import load_defaults, save_defaults, flatten_defaults, match_field_to_defaults
+
+__version__ = "1.1.0"
+__all__ = [
+    "PDFFiller",
+    "PDFField",
+    "CheckboxField",
+    "PDFFillerError",
+    "FieldNotFoundError",
+    "load_defaults",
+    "save_defaults",
+    "flatten_defaults",
+    "match_field_to_defaults",
+]
