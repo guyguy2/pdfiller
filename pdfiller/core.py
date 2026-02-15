@@ -393,6 +393,12 @@ class PDFFiller:
         if not image_path.exists():
             raise PDFFillerError(f"Image file not found: {image_path}")
 
+        # Validate the file is a recognizable image format
+        try:
+            fitz.Pixmap(str(image_path))
+        except Exception:
+            raise PDFFillerError(f"Invalid or unsupported image file: {image_path}")
+
         self._image_overlays.append({
             "image_path": str(image_path),
             "rect": (x0, y0, x1, y1),

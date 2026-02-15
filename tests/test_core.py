@@ -194,6 +194,13 @@ class TestInsertImage:
             with pytest.raises(PDFFillerError):
                 f.insert_image("/nonexistent/image.png", 0, 0, 100, 100)
 
+    def test_invalid_image_format_raises(self, non_fillable_pdf, tmp_path):
+        bad_img = tmp_path / "not_an_image.png"
+        bad_img.write_text("this is not a PNG")
+        with PDFFiller(non_fillable_pdf) as f:
+            with pytest.raises(PDFFillerError, match="Invalid or unsupported"):
+                f.insert_image(bad_img, 0, 0, 100, 100)
+
     def test_chaining(self, non_fillable_pdf, tiny_png):
         with PDFFiller(non_fillable_pdf) as f:
             result = f.insert_image(tiny_png, 10, 20, 100, 50).insert_image(tiny_png, 30, 40, 120, 70)
