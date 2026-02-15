@@ -118,6 +118,21 @@ class TestMatchFieldToDefaults:
         assert match_field_to_defaults("FirstName", defaults) == ["Guy", "Gregory"]
 
 
+class TestDefaultsEnvVar:
+    def test_env_var_overrides_default_path(self, tmp_path, monkeypatch):
+        custom_path = tmp_path / "custom" / "defaults.json"
+        monkeypatch.setenv("PDFILLER_DEFAULTS", str(custom_path))
+        data = {"personal": {"first_name": "EnvTest"}}
+        save_defaults(data)
+        assert custom_path.exists()
+        loaded = load_defaults()
+        assert loaded["personal"]["first_name"] == "EnvTest"
+
+    def test_load_missing_env_var_path(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("PDFILLER_DEFAULTS", str(tmp_path / "nope.json"))
+        assert load_defaults() == {}
+
+
 class TestLoadSaveRoundTrip:
     def test_save_and_load(self, tmp_path):
         path = tmp_path / "defaults.json"
