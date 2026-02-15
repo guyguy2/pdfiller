@@ -6,7 +6,25 @@ import fitz
 import pytest
 
 from pdfiller.core import PDFFiller
-from pdfiller.exceptions import PDFFillerError
+from pdfiller.exceptions import PDFFillerError, PDFReadError
+
+
+class TestOpenErrors:
+    def test_missing_file_raises(self):
+        with pytest.raises(PDFReadError, match="not found"):
+            PDFFiller("/nonexistent/file.pdf")
+
+    def test_encrypted_pdf_raises(self, tmp_path):
+        path = tmp_path / "encrypted.pdf"
+        doc = fitz.open()
+        doc.new_page()
+        perm = fitz.PDF_PERM_ACCESSIBILITY
+        encrypt_meth = fitz.PDF_ENCRYPT_AES_256
+        doc.save(str(path), encryption=encrypt_meth, owner_pw="owner", user_pw="user", permissions=perm)
+        doc.close()
+
+        with pytest.raises(PDFReadError, match="password-protected"):
+            PDFFiller(path)
 
 
 class TestPageCount:

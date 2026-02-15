@@ -54,6 +54,10 @@ class PDFFiller:
         except Exception as e:
             raise PDFReadError(f"Failed to open PDF: {e}")
 
+        if self.doc.is_encrypted:
+            self.doc.close()
+            raise PDFReadError(f"PDF is password-protected: {pdf_path}")
+
         self._fields_to_fill: Dict[str, Any] = {}
         self._checkboxes_to_check: set = set()
         self._text_overlays: list = []
