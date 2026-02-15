@@ -394,7 +394,7 @@ filler.check_box("exact_field_name_from_list")
 
 ### Problem: Multi-page forms
 
-**Solution**: Currently only page 1 is supported. For multi-page forms, you'll need to process each page separately (this is a future enhancement).
+**Solution**: Multi-page PDFs are fully supported. All fields across all pages are listed, filled, and flattened automatically.
 
 ## Best Practices
 

@@ -222,7 +222,7 @@ We recommend always using `flatten=True` (the default) when saving.
 - A: Use `filler.list_fields()` or run `pdfiller list -i form.pdf`
 
 **Q: Can I fill multi-page PDFs?**
-- A: Currently only single-page PDFs are supported. Multi-page support coming soon.
+- A: Yes! Multi-page PDFs are fully supported. Fields on all pages are listed, filled, and flattened.
 
 **Q: Field names have weird characters**
 - A: Some PDFs use internal names like "field_1" or "Text1". Use the `list` command to see actual names.
@@ -239,7 +239,6 @@ MIT License - Feel free to use in your projects!
 ## Contributing
 
 Contributions welcome! Some areas for improvement:
-- Multi-page PDF support
 - Radio button support
 - Dropdown/combo box support
 - Batch processing multiple PDFs
