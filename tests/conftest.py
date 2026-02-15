@@ -2,9 +2,34 @@
 Test fixtures that generate PDF files with PyMuPDF for testing.
 """
 
+import struct
+import zlib
+
 import fitz
 import pytest
 from pathlib import Path
+
+
+def _make_png() -> bytes:
+    """Create a minimal valid 1x1 PNG image."""
+    sig = b'\x89PNG\r\n\x1a\n'
+    ihdr_data = struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0)
+    ihdr_crc = struct.pack('>I', zlib.crc32(b'IHDR' + ihdr_data) & 0xffffffff)
+    ihdr = struct.pack('>I', 13) + b'IHDR' + ihdr_data + ihdr_crc
+    raw = zlib.compress(b'\x00\x00\x00\x00')
+    idat_crc = struct.pack('>I', zlib.crc32(b'IDAT' + raw) & 0xffffffff)
+    idat = struct.pack('>I', len(raw)) + b'IDAT' + raw + idat_crc
+    iend_crc = struct.pack('>I', zlib.crc32(b'IEND') & 0xffffffff)
+    iend = struct.pack('>I', 0) + b'IEND' + iend_crc
+    return sig + ihdr + idat + iend
+
+
+@pytest.fixture
+def tiny_png(tmp_path) -> Path:
+    """Provide a minimal valid PNG file for image insertion tests."""
+    img = tmp_path / "test_image.png"
+    img.write_bytes(_make_png())
+    return img
 
 
 @pytest.fixture

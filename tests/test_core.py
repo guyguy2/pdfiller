@@ -173,51 +173,19 @@ class TestInsertTextBox:
 
 
 class TestInsertImage:
-    def test_queues_image_overlay(self, non_fillable_pdf, tmp_path):
-        img = tmp_path / "sig.png"
-        # Create a minimal valid 1x1 PNG
-        import struct, zlib
-        def _make_png():
-            sig = b'\x89PNG\r\n\x1a\n'
-            ihdr_data = struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0)
-            ihdr_crc = struct.pack('>I', zlib.crc32(b'IHDR' + ihdr_data) & 0xffffffff)
-            ihdr = struct.pack('>I', 13) + b'IHDR' + ihdr_data + ihdr_crc
-            raw = zlib.compress(b'\x00\x00\x00\x00')
-            idat_crc = struct.pack('>I', zlib.crc32(b'IDAT' + raw) & 0xffffffff)
-            idat = struct.pack('>I', len(raw)) + b'IDAT' + raw + idat_crc
-            iend_crc = struct.pack('>I', zlib.crc32(b'IEND') & 0xffffffff)
-            iend = struct.pack('>I', 0) + b'IEND' + iend_crc
-            return sig + ihdr + idat + iend
-        img.write_bytes(_make_png())
-
+    def test_queues_image_overlay(self, non_fillable_pdf, tiny_png):
         with PDFFiller(non_fillable_pdf) as f:
-            f.insert_image(img, 100, 200, 300, 250)
+            f.insert_image(tiny_png, 100, 200, 300, 250)
             assert len(f._image_overlays) == 1
-            assert f._image_overlays[0]["image_path"] == str(img)
+            assert f._image_overlays[0]["image_path"] == str(tiny_png)
 
-    def test_saves_with_image(self, non_fillable_pdf, tmp_path):
-        img = tmp_path / "sig.png"
-        import struct, zlib
-        def _make_png():
-            sig = b'\x89PNG\r\n\x1a\n'
-            ihdr_data = struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0)
-            ihdr_crc = struct.pack('>I', zlib.crc32(b'IHDR' + ihdr_data) & 0xffffffff)
-            ihdr = struct.pack('>I', 13) + b'IHDR' + ihdr_data + ihdr_crc
-            raw = zlib.compress(b'\x00\x00\x00\x00')
-            idat_crc = struct.pack('>I', zlib.crc32(b'IDAT' + raw) & 0xffffffff)
-            idat = struct.pack('>I', len(raw)) + b'IDAT' + raw + idat_crc
-            iend_crc = struct.pack('>I', zlib.crc32(b'IEND') & 0xffffffff)
-            iend = struct.pack('>I', 0) + b'IEND' + iend_crc
-            return sig + ihdr + idat + iend
-        img.write_bytes(_make_png())
-
+    def test_saves_with_image(self, non_fillable_pdf, tiny_png, tmp_path):
         out = tmp_path / "with_image.pdf"
         with PDFFiller(non_fillable_pdf) as f:
-            f.insert_image(img, 100, 400, 300, 450)
+            f.insert_image(tiny_png, 100, 400, 300, 450)
             f.save(out, flatten=False)
 
         doc = fitz.open(str(out))
-        # Page should have at least one image
         assert len(doc[0].get_images()) > 0
         doc.close()
 
@@ -226,46 +194,16 @@ class TestInsertImage:
             with pytest.raises(PDFFillerError):
                 f.insert_image("/nonexistent/image.png", 0, 0, 100, 100)
 
-    def test_chaining(self, non_fillable_pdf, tmp_path):
-        img = tmp_path / "sig.png"
-        import struct, zlib
-        def _make_png():
-            sig = b'\x89PNG\r\n\x1a\n'
-            ihdr_data = struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0)
-            ihdr_crc = struct.pack('>I', zlib.crc32(b'IHDR' + ihdr_data) & 0xffffffff)
-            ihdr = struct.pack('>I', 13) + b'IHDR' + ihdr_data + ihdr_crc
-            raw = zlib.compress(b'\x00\x00\x00\x00')
-            idat_crc = struct.pack('>I', zlib.crc32(b'IDAT' + raw) & 0xffffffff)
-            idat = struct.pack('>I', len(raw)) + b'IDAT' + raw + idat_crc
-            iend_crc = struct.pack('>I', zlib.crc32(b'IEND') & 0xffffffff)
-            iend = struct.pack('>I', 0) + b'IEND' + iend_crc
-            return sig + ihdr + idat + iend
-        img.write_bytes(_make_png())
-
+    def test_chaining(self, non_fillable_pdf, tiny_png):
         with PDFFiller(non_fillable_pdf) as f:
-            result = f.insert_image(img, 10, 20, 100, 50).insert_image(img, 30, 40, 120, 70)
+            result = f.insert_image(tiny_png, 10, 20, 100, 50).insert_image(tiny_png, 30, 40, 120, 70)
             assert result is f
             assert len(f._image_overlays) == 2
 
-    def test_image_on_specific_page(self, multi_page_pdf, tmp_path):
-        img = tmp_path / "sig.png"
-        import struct, zlib
-        def _make_png():
-            sig = b'\x89PNG\r\n\x1a\n'
-            ihdr_data = struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0)
-            ihdr_crc = struct.pack('>I', zlib.crc32(b'IHDR' + ihdr_data) & 0xffffffff)
-            ihdr = struct.pack('>I', 13) + b'IHDR' + ihdr_data + ihdr_crc
-            raw = zlib.compress(b'\x00\x00\x00\x00')
-            idat_crc = struct.pack('>I', zlib.crc32(b'IDAT' + raw) & 0xffffffff)
-            idat = struct.pack('>I', len(raw)) + b'IDAT' + raw + idat_crc
-            iend_crc = struct.pack('>I', zlib.crc32(b'IEND') & 0xffffffff)
-            iend = struct.pack('>I', 0) + b'IEND' + iend_crc
-            return sig + ihdr + idat + iend
-        img.write_bytes(_make_png())
-
+    def test_image_on_specific_page(self, multi_page_pdf, tiny_png, tmp_path):
         out = tmp_path / "img_page2.pdf"
         with PDFFiller(multi_page_pdf) as f:
-            f.insert_image(img, 100, 300, 300, 350, page_num=1)
+            f.insert_image(tiny_png, 100, 300, 300, 350, page_num=1)
             f.save(out, flatten=False)
 
         doc = fitz.open(str(out))
