@@ -269,3 +269,14 @@ class TestAutoDateFilling:
             fields = f2.list_fields()
             date_field = next(field for field in fields if field["name"] == "sign_date")
             assert date_field["value"] == "12/25/2025"
+
+    def test_auto_fill_dates_disabled(self, fillable_pdf_with_dates, tmp_path):
+        out = tmp_path / "no_auto_date.pdf"
+
+        with PDFFiller(fillable_pdf_with_dates, auto_fill_dates=False) as f:
+            f.save(out, flatten=False)
+
+        with PDFFiller(out) as f2:
+            fields = f2.list_fields()
+            date_field = next(field for field in fields if field["name"] == "sign_date")
+            assert not date_field["value"]

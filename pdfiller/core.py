@@ -28,17 +28,20 @@ class PDFFiller:
         filler.save("output.pdf", flatten=True)
     """
 
-    def __init__(self, pdf_path: Union[str, Path]):
+    def __init__(self, pdf_path: Union[str, Path], auto_fill_dates: bool = True):
         """
         Initialize PDFFiller with a PDF file
 
         Args:
             pdf_path: Path to the input PDF file
+            auto_fill_dates: If True, empty date fields are filled with today's
+                date during save(). Set to False to disable this behavior.
 
         Raises:
             PDFReadError: If PDF cannot be opened
         """
         self.pdf_path = Path(pdf_path)
+        self.auto_fill_dates = auto_fill_dates
 
         if not self.pdf_path.exists():
             raise PDFReadError(f"PDF file not found: {pdf_path}")
@@ -233,8 +236,8 @@ class PDFFiller:
                     widget.field_value = True
                     widget.update()
 
-                # Auto-fill date fields with today's date if empty
-                elif self._is_date_field(field_name) and not widget.field_value:
+                # Auto-fill date fields with today's date if empty and enabled
+                elif self.auto_fill_dates and self._is_date_field(field_name) and not widget.field_value:
                     widget.field_value = self._format_today_date()
                     widget.update()
 
