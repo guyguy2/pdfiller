@@ -14,8 +14,15 @@ from .exceptions import PDFFillerError
 
 def load_values_from_json(json_path: Path) -> Dict[str, Any]:
     """Load field values from JSON file"""
-    with open(json_path) as f:
-        data = json.load(f)
+    try:
+        with open(json_path) as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON in {json_path}: {e}", file=sys.stderr)
+        sys.exit(1)
+    except OSError as e:
+        print(f"Error: Cannot read {json_path}: {e}", file=sys.stderr)
+        sys.exit(1)
     return data
 
 
@@ -34,7 +41,7 @@ def list_fields_command(args):
                 # Print to console
                 print(f"\nFound {len(fields)} fields in {args.input}:\n")
                 for field in fields:
-                    print(f"  • {field['name']}")
+                    print(f"  - {field['name']}")
                     print(f"    Type: {field['type']}")
                     if field['value']:
                         print(f"    Current value: {field['value']}")
@@ -71,6 +78,9 @@ def fill_command(args):
             # Override with command-line field arguments
             if args.field:
                 for field_spec in args.field:
+                    if '=' not in field_spec:
+                        print(f"Error: Invalid field format '{field_spec}', expected name=value", file=sys.stderr)
+                        sys.exit(1)
                     name, value = field_spec.split('=', 1)
                     filler.fill_field(name, value)
 
