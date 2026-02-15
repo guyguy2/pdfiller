@@ -227,13 +227,13 @@ class PDFFiller:
     @staticmethod
     def _format_today_date() -> str:
         """
-        Get today's date formatted as MM/DD/YYYY
+        Get today's date formatted as M/D/YYYY (no leading zeros)
 
         Returns:
             Today's date as a string
         """
         today = datetime.now()
-        return today.strftime("%-m/%-d/%Y")
+        return f"{today.month}/{today.day}/{today.year}"
 
     def _apply_field_updates(self):
         """Apply all queued field updates to the PDF (across all pages)"""
