@@ -151,6 +151,37 @@ def inspect_command(args):
         sys.exit(1)
 
 
+def export_command(args):
+    """Extract current field values from a PDF to JSON"""
+    try:
+        with PDFFiller(args.input) as filler:
+            fields = filler.list_fields()
+            data = {
+                "fields": {},
+                "checkboxes": [],
+            }
+            for field in fields:
+                name = field["name"]
+                value = field["value"]
+                field_type = field["type"]
+                if field_type in ("CheckBox", "Button"):
+                    if value and value not in ("Off", ""):
+                        data["checkboxes"].append(name)
+                elif value:
+                    data["fields"][name] = value
+
+            output = json.dumps(data, indent=2)
+            if args.output:
+                Path(args.output).write_text(output)
+                print(f"Saved: {args.output}")
+            else:
+                print(output)
+
+    except PDFFillerError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def template_command(args):
     """Generate a template JSON file for filling a PDF"""
     try:
@@ -232,6 +263,11 @@ Examples:
     inspect_parser = subparsers.add_parser('inspect', help='Inspect text layout of a non-fillable PDF')
     inspect_parser.add_argument('-i', '--input', required=True, help='Input PDF file')
 
+    # Export command
+    export_parser = subparsers.add_parser('export', help='Extract field values from a filled PDF')
+    export_parser.add_argument('-i', '--input', required=True, help='Input PDF file')
+    export_parser.add_argument('-o', '--output', help='Output JSON file (prints to stdout if omitted)')
+
     # Template command
     template_parser = subparsers.add_parser('template', help='Generate template JSON for a PDF')
     template_parser.add_argument('-i', '--input', required=True, help='Input PDF file')
@@ -250,6 +286,8 @@ Examples:
         fill_command(args)
     elif args.command == 'inspect':
         inspect_command(args)
+    elif args.command == 'export':
+        export_command(args)
     elif args.command == 'template':
         template_command(args)
 

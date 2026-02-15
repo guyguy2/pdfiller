@@ -132,6 +132,34 @@ class TestInspectCommand:
         assert "Page 0:" in result.stdout
 
 
+class TestExportCommand:
+    def test_export_to_stdout(self, fillable_pdf, tmp_path):
+        # Fill without flattening so fields are preserved
+        out = tmp_path / "filled.pdf"
+        run_cli("fill", "-i", str(fillable_pdf), "-o", str(out),
+                "-f", "first_name=Alice", "--no-flatten")
+        result = run_cli("export", "-i", str(out))
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert data["fields"]["first_name"] == "Alice"
+
+    def test_export_to_file(self, fillable_pdf, tmp_path):
+        out = tmp_path / "filled.pdf"
+        run_cli("fill", "-i", str(fillable_pdf), "-o", str(out),
+                "-f", "first_name=Bob", "--no-flatten")
+        export_out = tmp_path / "exported.json"
+        result = run_cli("export", "-i", str(out), "-o", str(export_out))
+        assert result.returncode == 0
+        data = json.loads(export_out.read_text())
+        assert data["fields"]["first_name"] == "Bob"
+
+    def test_export_empty_pdf(self, fillable_pdf):
+        result = run_cli("export", "-i", str(fillable_pdf))
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert data["fields"] == {}
+
+
 class TestNoCommand:
     def test_no_command_shows_help(self):
         result = run_cli()
