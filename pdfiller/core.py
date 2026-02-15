@@ -473,55 +473,55 @@ class PDFFiller:
         self.doc.save(str(temp_path), garbage=4, deflate=True)
         self.doc.close()
 
-        # Reopen and add text overlays for form fields
-        self.doc = fitz.open(str(temp_path))
+        try:
+            # Reopen and add text overlays for form fields
+            self.doc = fitz.open(str(temp_path))
 
-        for page_num in range(len(self.doc)):
-            page = self.doc[page_num]
-            for widget in page.widgets():
-                field_name = widget.field_name
+            for page_num in range(len(self.doc)):
+                page = self.doc[page_num]
+                for widget in page.widgets():
+                    field_name = widget.field_name
 
-                # Only overlay fields we filled
-                if field_name in self._fields_to_fill or field_name in self._checkboxes_to_check:
-                    value = widget.field_value
+                    # Only overlay fields we filled
+                    if field_name in self._fields_to_fill or field_name in self._checkboxes_to_check:
+                        value = widget.field_value
 
-                    if value and value not in ['Off', '']:
-                        rect = widget.rect
+                        if value and value not in ['Off', '']:
+                            rect = widget.rect
 
-                        # Convert checkbox values
-                        if value in ['On', True]:
-                            value = 'X'
-                        else:
-                            value = str(value)
+                            # Convert checkbox values
+                            if value in ['On', True]:
+                                value = 'X'
+                            else:
+                                value = str(value)
 
-                        # Calculate font size based on rectangle height
-                        height = rect.height
-                        font_size = min(height * 0.7, 10)  # Max 10pt
+                            # Calculate font size based on rectangle height
+                            height = rect.height
+                            font_size = min(height * 0.7, 10)  # Max 10pt
 
-                        # Position text
-                        x = rect.x0 + 2
-                        y = rect.y0 + (height * 0.75)
+                            # Position text
+                            x = rect.x0 + 2
+                            y = rect.y0 + (height * 0.75)
 
-                        page.insert_text(
-                            (x, y),
-                            value,
-                            fontsize=font_size,
-                            color=(0, 0, 0),
-                            fontname="helv"
-                        )
+                            page.insert_text(
+                                (x, y),
+                                value,
+                                fontsize=font_size,
+                                color=(0, 0, 0),
+                                fontname="helv"
+                            )
 
-        # Remove widget annotations so only the text overlays remain
-        for page_num in range(len(self.doc)):
-            page = self.doc[page_num]
-            widget = page.first_widget
-            while widget:
-                widget = page.delete_widget(widget)
+            # Remove widget annotations so only the text overlays remain
+            for page_num in range(len(self.doc)):
+                page = self.doc[page_num]
+                widget = page.first_widget
+                while widget:
+                    widget = page.delete_widget(widget)
 
-        # Save final version
-        self.doc.save(str(output_path), garbage=4, deflate=True)
-
-        # Clean up temp file
-        temp_path.unlink(missing_ok=True)
+            # Save final version
+            self.doc.save(str(output_path), garbage=4, deflate=True)
+        finally:
+            temp_path.unlink(missing_ok=True)
 
     def save(self, output_path: Union[str, Path], flatten: bool = True) -> Path:
         """
