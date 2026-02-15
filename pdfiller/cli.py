@@ -54,6 +54,9 @@ def list_fields_command(args):
 
 def fill_command(args):
     """Fill PDF fields from JSON or command-line arguments"""
+    if not args.dry_run and not args.output:
+        print("Error: -o/--output is required unless --dry-run is used", file=sys.stderr)
+        sys.exit(1)
     try:
         with PDFFiller(args.input) as filler:
 
@@ -101,9 +104,26 @@ def fill_command(args):
                     if invalid:
                         print(f"Warning: Fields not found: {', '.join(invalid)}", file=sys.stderr)
 
+            # Collect summary info
+            filled_count = len(filler._fields_to_fill)
+            checked_count = len(filler._checkboxes_to_check)
+
+            # Dry run: show what would be filled without saving
+            if args.dry_run:
+                print(f"Dry run for {args.input}:")
+                if filler._fields_to_fill:
+                    for name, value in filler._fields_to_fill.items():
+                        print(f"  {name} = {value}")
+                if filler._checkboxes_to_check:
+                    for name in filler._checkboxes_to_check:
+                        print(f"  {name} = [checked]")
+                if not filler._fields_to_fill and not filler._checkboxes_to_check:
+                    print("  (no fields to fill)")
+                return
+
             # Save the filled PDF
             output_path = filler.save(args.output, flatten=args.flatten)
-            print(f"Done: {output_path}")
+            print(f"Done: {output_path} ({filled_count} fields, {checked_count} checkboxes)")
 
     except PDFFillerError as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -174,7 +194,7 @@ Examples:
     # Fill command
     fill_parser = subparsers.add_parser('fill', help='Fill PDF form fields')
     fill_parser.add_argument('-i', '--input', required=True, help='Input PDF file')
-    fill_parser.add_argument('-o', '--output', required=True, help='Output PDF file')
+    fill_parser.add_argument('-o', '--output', help='Output PDF file (required unless --dry-run)')
     fill_parser.add_argument('-j', '--values-json', help='JSON file with field values')
     fill_parser.add_argument('-f', '--field', action='append', help='Field to fill (name=value)')
     fill_parser.add_argument('-c', '--checkbox', action='append', help='Checkbox to check')
@@ -184,6 +204,8 @@ Examples:
                              help='Preserve existing field values')
     fill_parser.add_argument('--validate', action='store_true',
                              help='Validate field names before filling')
+    fill_parser.add_argument('--dry-run', action='store_true',
+                             help='Show what would be filled without saving')
 
     # Template command
     template_parser = subparsers.add_parser('template', help='Generate template JSON for a PDF')
