@@ -130,6 +130,27 @@ def fill_command(args):
         sys.exit(1)
 
 
+def inspect_command(args):
+    """Inspect a non-fillable PDF's text layout"""
+    try:
+        with PDFFiller(args.input) as filler:
+            for page_num in range(filler.page_count):
+                layout = filler.get_page_layout(page_num)
+                print(f"Page {page_num}: {layout['width']:.0f}x{layout['height']:.0f}")
+                for block in layout['blocks']:
+                    bbox = block['bbox']
+                    text = block['text'].replace('\n', ' ')
+                    if len(text) > 80:
+                        text = text[:77] + "..."
+                    print(f"  [{bbox['x0']:.0f},{bbox['y0']:.0f} - {bbox['x1']:.0f},{bbox['y1']:.0f}] {text}")
+                if not layout['blocks']:
+                    print("  (no text blocks)")
+
+    except PDFFillerError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def template_command(args):
     """Generate a template JSON file for filling a PDF"""
     try:
@@ -207,6 +228,10 @@ Examples:
     fill_parser.add_argument('--dry-run', action='store_true',
                              help='Show what would be filled without saving')
 
+    # Inspect command
+    inspect_parser = subparsers.add_parser('inspect', help='Inspect text layout of a non-fillable PDF')
+    inspect_parser.add_argument('-i', '--input', required=True, help='Input PDF file')
+
     # Template command
     template_parser = subparsers.add_parser('template', help='Generate template JSON for a PDF')
     template_parser.add_argument('-i', '--input', required=True, help='Input PDF file')
@@ -223,6 +248,8 @@ Examples:
         list_fields_command(args)
     elif args.command == 'fill':
         fill_command(args)
+    elif args.command == 'inspect':
+        inspect_command(args)
     elif args.command == 'template':
         template_command(args)
 

@@ -119,6 +119,19 @@ class TestTemplateCommand:
         assert "agree_terms" in data["checkboxes"]
 
 
+class TestInspectCommand:
+    def test_inspect_non_fillable(self, non_fillable_pdf):
+        result = run_cli("inspect", "-i", str(non_fillable_pdf))
+        assert result.returncode == 0
+        assert "Page 0:" in result.stdout
+        assert "612x792" in result.stdout
+
+    def test_inspect_fillable(self, fillable_pdf):
+        result = run_cli("inspect", "-i", str(fillable_pdf))
+        assert result.returncode == 0
+        assert "Page 0:" in result.stdout
+
+
 class TestNoCommand:
     def test_no_command_shows_help(self):
         result = run_cli()
