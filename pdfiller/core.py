@@ -107,7 +107,7 @@ class PDFFiller:
         """
         fields = []
 
-        for page_num in range(len(self.doc)):
+        for page_num in range(self.page_count):
             page = self.doc[page_num]
             for widget in page.widgets():
                 field_info = {
@@ -136,7 +136,7 @@ class PDFFiller:
         Returns:
             Field value or None if not found
         """
-        for page_num in range(len(self.doc)):
+        for page_num in range(self.page_count):
             for widget in self.doc[page_num].widgets():
                 if widget.field_name == field_name:
                     return widget.field_value
@@ -237,7 +237,7 @@ class PDFFiller:
 
     def _apply_field_updates(self):
         """Apply all queued field updates to the PDF (across all pages)"""
-        for page_num in range(len(self.doc)):
+        for page_num in range(self.page_count):
             page = self.doc[page_num]
             for widget in page.widgets():
                 field_name = widget.field_name
@@ -263,10 +263,13 @@ class PDFFiller:
 
     def has_form_fields(self) -> bool:
         """Check whether the PDF has any AcroForm fields."""
-        for page_num in range(len(self.doc)):
+        for page_num in range(self.page_count):
             page = self.doc[page_num]
-            if any(True for _ in page.widgets()):
+            try:
+                next(page.widgets())
                 return True
+            except StopIteration:
+                pass
         return False
 
     def get_page_layout(self, page_num: int = 0) -> Dict[str, Any]:
@@ -277,8 +280,8 @@ class PDFFiller:
         Returns:
             Dict with 'width', 'height', and 'blocks' (list of text block dicts)
         """
-        if page_num < 0 or page_num >= len(self.doc):
-            raise PDFFillerError(f"Page {page_num} out of range (0-{len(self.doc) - 1})")
+        if page_num < 0 or page_num >= self.page_count:
+            raise PDFFillerError(f"Page {page_num} out of range (0-{self.page_count - 1})")
 
         page = self.doc[page_num]
         rect = page.rect
@@ -422,7 +425,7 @@ class PDFFiller:
         """Write all queued image overlays to their respective pages."""
         for overlay in self._image_overlays:
             page_num = overlay["page_num"]
-            if page_num < 0 or page_num >= len(self.doc):
+            if page_num < 0 or page_num >= self.page_count:
                 continue
             page = self.doc[page_num]
             page.insert_image(
@@ -435,7 +438,7 @@ class PDFFiller:
         """Write all queued text overlays to their respective pages."""
         for overlay in self._text_overlays:
             page_num = overlay["page_num"]
-            if page_num < 0 or page_num >= len(self.doc):
+            if page_num < 0 or page_num >= self.page_count:
                 continue
             page = self.doc[page_num]
 
@@ -477,7 +480,7 @@ class PDFFiller:
             # Reopen and add text overlays for form fields
             self.doc = fitz.open(str(temp_path))
 
-            for page_num in range(len(self.doc)):
+            for page_num in range(self.page_count):
                 page = self.doc[page_num]
                 for widget in page.widgets():
                     field_name = widget.field_name
@@ -512,7 +515,7 @@ class PDFFiller:
                             )
 
             # Remove widget annotations so only the text overlays remain
-            for page_num in range(len(self.doc)):
+            for page_num in range(self.page_count):
                 page = self.doc[page_num]
                 widget = page.first_widget
                 while widget:
@@ -580,5 +583,8 @@ class PDFFiller:
         return results
 
     def __repr__(self):
-        field_count = len(self.list_fields())
-        return f"PDFFiller(pdf='{self.pdf_path.name}', fields={field_count})"
+        count = 0
+        for page_num in range(self.page_count):
+            for _ in self.doc[page_num].widgets():
+                count += 1
+        return f"PDFFiller(pdf='{self.pdf_path.name}', fields={count})"
