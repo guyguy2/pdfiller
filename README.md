@@ -91,13 +91,31 @@ pdfiller fill -i form.pdf -j values.json -o filled.pdf --preserve-existing
 
 ### PDFFiller Class
 
+#### Constructor
+
+**`__init__(pdf_path: str, auto_fill_dates: bool = True, strict: bool = False)`**
+- Initialize with a PDF file path
+- `auto_fill_dates` - When True, empty date fields are automatically filled with today's date during save
+- `strict` - When True, `fill_field`, `check_box`, and `uncheck_box` raise `FieldNotFoundError` if the field does not exist
+
+#### Properties
+
+**`page_count -> int`**
+- Number of pages in the PDF
+
 #### Methods
 
-**`__init__(pdf_path: str)`**
-- Initialize with a PDF file path
+**`has_form_fields() -> bool`**
+- Check whether the PDF has any AcroForm fields. Returns True if at least one widget exists.
 
 **`list_fields() -> List[Dict]`**
 - Returns list of all form fields with their properties
+
+**`get_field_value(field_name: str) -> Any`**
+- Get the current value of a field
+
+**`get_page_layout(page_num: int = 0) -> Dict`**
+- Extract text blocks with positions and page dimensions. Returns a dict with `width`, `height`, and `blocks` (list of text block dicts with `text` and `bbox` keys). Useful for figuring out where to place text on non-fillable PDFs.
 
 **`fill_field(field_name: str, value: Any) -> PDFFiller`**
 - Fill a single field. Returns self for chaining.
@@ -111,6 +129,15 @@ pdfiller fill -i form.pdf -j values.json -o filled.pdf --preserve-existing
 **`uncheck_box(field_name: str) -> PDFFiller`**
 - Uncheck a checkbox field. Returns self for chaining.
 
+**`insert_text(text, x, y, page_num=0, font_size=10, font_name="helv", color=(0,0,0)) -> PDFFiller`**
+- Insert text at specific coordinates on a page. Coordinates are in points from the top-left corner. Returns self for chaining.
+
+**`insert_text_box(text, x0, y0, x1, y1, page_num=0, font_size=10, font_name="helv", color=(0,0,0)) -> PDFFiller`**
+- Insert text in a bounding box with automatic wrapping. Returns self for chaining.
+
+**`insert_image(image_path, x0, y0, x1, y1, page_num=0, keep_proportion=True) -> PDFFiller`**
+- Insert an image (PNG, GIF, JPEG) at specific coordinates. Useful for signatures, stamps, or logos. `keep_proportion` maintains aspect ratio within the box. Returns self for chaining.
+
 **`preserve_existing_fields(preserve: bool = True) -> PDFFiller`**
 - Set whether to preserve existing field values
 
@@ -120,8 +147,70 @@ pdfiller fill -i form.pdf -j values.json -o filled.pdf --preserve-existing
 **`save(output_path: str, flatten: bool = True) -> Path`**
 - Save the filled PDF. `flatten=True` (recommended) ensures values are visible in all viewers.
 
-**`get_field_value(field_name: str) -> Any`**
-- Get the current value of a field
+## Defaults System
+
+PDFiller can remember common field values (name, email, address, etc.) so they are auto-filled across sessions.
+
+### Storage
+
+Defaults are stored in `~/.pdfiller/defaults.json`. Override the location with the `PDFILLER_DEFAULTS` environment variable.
+
+The file uses nested categories:
+
+```json
+{
+  "personal": {
+    "first_name": "Guy",
+    "last_name": "Smith",
+    "email": "guy@example.com",
+    "phone": ["555-1234", "555-5678"]
+  },
+  "address": {
+    "street": "123 Main St",
+    "city": "Springfield",
+    "state": "IL",
+    "zip": "62704"
+  }
+}
+```
+
+List values (like `phone` above) let you store multiple options. When matched, PDFiller returns the list so you can pick one.
+
+### API
+
+**`load_defaults(path=None) -> Dict`**
+- Load defaults from JSON file. Returns empty dict if file is missing.
+
+**`save_defaults(data: Dict, path=None) -> Path`**
+- Save defaults to JSON file. Creates parent directories if needed. Adds a `_meta.updated` timestamp.
+
+**`flatten_defaults(data: Dict) -> Dict[str, Union[str, List[str]]]`**
+- Flatten nested categories into a single `{field_name: value}` dict for matching.
+
+**`match_field_to_defaults(field_name: str, defaults: Dict) -> Optional[Union[str, List[str]]]`**
+- Match a PDF field name to a stored default. Tries exact match first, then normalized fuzzy match (e.g. `first_name` matches `FirstName`). Returns the value, or None if no match.
+
+### Example
+
+```python
+from pdfiller import PDFFiller, load_defaults, flatten_defaults, match_field_to_defaults
+
+defaults = flatten_defaults(load_defaults())
+
+filler = PDFFiller("form.pdf")
+fields = filler.list_fields()
+
+values = {}
+for field in fields:
+    match = match_field_to_defaults(field["name"], defaults)
+    if isinstance(match, str):
+        values[field["name"]] = match
+    elif isinstance(match, list):
+        print(f"{field['name']}: pick from {match}")
+
+filler.fill_fields(values)
+filler.save("form_filled.pdf")
+```
 
 ## JSON Format
 

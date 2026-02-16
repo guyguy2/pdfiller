@@ -2,6 +2,15 @@
 
 ## Quick Install
 
+Recommended - using `uv`:
+
+```bash
+cd pdfiller
+uv pip install -e .
+```
+
+Alternative - using pip:
+
 ```bash
 cd pdfiller
 pip install -e .
@@ -50,6 +59,21 @@ from pdfiller import PDFFiller
 
 ## For Development
 
+Using `uv` (recommended):
+
+```bash
+# Clone/download the pdfiller directory
+cd pdfiller
+
+# Install in development mode
+uv pip install -e .
+
+# Run tests
+uv run pytest tests/
+```
+
+Using pip:
+
 ```bash
 # Clone/download the pdfiller directory
 cd pdfiller
@@ -57,7 +81,7 @@ cd pdfiller
 # Install in development mode
 pip install -e .
 
-# Run tests (if available)
+# Run tests
 python -m pytest tests/
 ```
 

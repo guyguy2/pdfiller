@@ -74,10 +74,21 @@ Auto-filled from defaults:
 Multiple values stored - pick one:
   - phone: ["555-1234", "555-5678"]
 
+Auto-date fields (will be set to today's date on save if left empty):
+  - date_signed (Text)
+
 Need your input:
   - date_of_birth (Text)
   - policy_number (Text)
   - agree_terms (CheckBox)
+```
+
+Note: By default, empty date fields (fields with names like "date", "date_signed", etc.)
+are auto-filled with today's date when `save()` is called. Mention this to the user so
+they can provide a different value or disable the behavior if needed. To disable auto-date:
+
+```python
+filler = PDFFiller("form.pdf", auto_fill_dates=False)
 ```
 
 ### 5. Check for signature fields
@@ -100,12 +111,20 @@ filler.insert_image("path/to/signature.png", x0=100, y0=500, x1=350, y1=550, pag
 
 ### 6. Fill and save
 
+By default, any empty date fields are auto-filled with today's date when `save()` is called.
+To disable this behavior, pass `auto_fill_dates=False` when creating the filler:
+
+```python
+filler = PDFFiller("form.pdf", auto_fill_dates=False)
+```
+
 ```python
 # Fillable PDF
 filler.fill_fields(auto_filled)
 filler.fill_fields(user_provided_values)
 filler.check_box("agree_terms")  # for checkboxes
 filler.save("form_filled.pdf", flatten=True)
+# Empty date fields (e.g., "date_signed") are auto-filled with today's date unless disabled.
 
 # Non-fillable PDF
 filler.insert_text("Guy Smith", x=200, y=150, page_num=0, font_size=11)
