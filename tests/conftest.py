@@ -126,6 +126,39 @@ def non_fillable_pdf(tmp_path):
 
 
 @pytest.fixture
+def fillable_pdf_with_checked_box(tmp_path):
+    """Create a fillable PDF with a checkbox that is pre-checked."""
+    path = tmp_path / "checked_box.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=612, height=792)
+
+    # Add a text field
+    widget = fitz.Widget()
+    widget.field_type = fitz.PDF_WIDGET_TYPE_TEXT
+    widget.field_name = "name"
+    widget.rect = fitz.Rect(100, 100, 300, 120)
+    page.add_widget(widget)
+
+    # Add a checkbox that is pre-checked
+    widget = fitz.Widget()
+    widget.field_type = fitz.PDF_WIDGET_TYPE_CHECKBOX
+    widget.field_name = "agree"
+    widget.rect = fitz.Rect(100, 140, 120, 160)
+    page.add_widget(widget)
+
+    # Check the box by setting field_value and updating
+    for w in page.widgets():
+        if w.field_name == "agree":
+            w.field_value = True
+            w.update()
+            break
+
+    doc.save(str(path))
+    doc.close()
+    return path
+
+
+@pytest.fixture
 def fillable_pdf_with_dates(tmp_path):
     """Create a fillable PDF with date fields for testing auto-date functionality."""
     path = tmp_path / "fillable_with_dates.pdf"

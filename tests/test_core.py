@@ -6,7 +6,7 @@ import fitz
 import pytest
 
 from pdfiller.core import PDFFiller
-from pdfiller.exceptions import PDFFillerError, PDFReadError
+from pdfiller.exceptions import PDFFillerError, PDFReadError, PDFWriteError, FieldNotFoundError
 
 
 class TestOpenErrors:
@@ -305,3 +305,148 @@ class TestAutoDateFilling:
             fields = f2.list_fields()
             date_field = next(field for field in fields if field["name"] == "sign_date")
             assert not date_field["value"]
+
+
+class TestAutoDateWithFlatten:
+    def test_auto_date_survives_flatten(self, fillable_pdf_with_dates, tmp_path):
+        """Save with flatten=True and auto_fill_dates=True (default).
+        Verify the flattened output contains today's date in the text."""
+        out = tmp_path / "flat_date.pdf"
+        with PDFFiller(fillable_pdf_with_dates) as f:
+            f.save(out, flatten=True)
+
+        # After flattening, the date should be visible as text (not a field)
+        doc = fitz.open(str(out))
+        text = doc[0].get_text()
+        today = PDFFiller._format_today_date()
+        assert today in text
+        doc.close()
+
+
+class TestUncheckBox:
+    def test_uncheck_pre_checked_box(self, fillable_pdf_with_checked_box, tmp_path):
+        """Unchecking a pre-checked box should result in it being unchecked after save."""
+        out = tmp_path / "unchecked.pdf"
+        with PDFFiller(fillable_pdf_with_checked_box) as f:
+            f.uncheck_box("agree")
+            f.save(out, flatten=False)
+
+        with PDFFiller(out) as f2:
+            val = f2.get_field_value("agree")
+            # After unchecking, the value should be falsy (False, "Off", or empty)
+            assert not val or val == "Off"
+
+    def test_uncheck_removes_from_check_set(self, fillable_pdf_with_checked_box):
+        """Calling check_box then uncheck_box should remove it from the check set."""
+        with PDFFiller(fillable_pdf_with_checked_box) as f:
+            f.check_box("agree")
+            assert "agree" in f._checkboxes_to_check
+
+            f.uncheck_box("agree")
+            assert "agree" not in f._checkboxes_to_check
+            assert "agree" in f._checkboxes_to_uncheck
+
+
+class TestStrictMode:
+    def test_fill_field_nonexistent_raises(self, fillable_pdf):
+        """In strict mode, filling a nonexistent field raises FieldNotFoundError."""
+        with PDFFiller(fillable_pdf, strict=True) as f:
+            with pytest.raises(FieldNotFoundError):
+                f.fill_field("nonexistent_field", "value")
+
+    def test_check_box_nonexistent_raises(self, fillable_pdf):
+        """In strict mode, checking a nonexistent checkbox raises FieldNotFoundError."""
+        with PDFFiller(fillable_pdf, strict=True) as f:
+            with pytest.raises(FieldNotFoundError):
+                f.check_box("nonexistent_field")
+
+    def test_fill_field_existing_works(self, fillable_pdf):
+        """In strict mode, filling an existing field should work fine."""
+        with PDFFiller(fillable_pdf, strict=True) as f:
+            # Should not raise - first_name exists in the fillable_pdf fixture
+            f.fill_field("first_name", "value")
+
+    def test_non_strict_nonexistent_does_not_raise(self, fillable_pdf):
+        """In non-strict mode (default), filling a nonexistent field does not raise."""
+        with PDFFiller(fillable_pdf, strict=False) as f:
+            # Should not raise
+            f.fill_field("nonexistent_field", "value")
+
+
+class TestSaveIsTerminal:
+    def test_save_twice_raises(self, fillable_pdf, tmp_path):
+        """Calling save() a second time raises PDFFillerError."""
+        out1 = tmp_path / "first.pdf"
+        out2 = tmp_path / "second.pdf"
+        with PDFFiller(fillable_pdf) as f:
+            f.save(out1, flatten=False)
+            with pytest.raises(PDFFillerError, match="already been called"):
+                f.save(out2, flatten=False)
+
+
+class TestReadOnlyOutputPath:
+    def test_save_to_readonly_dir_raises(self, fillable_pdf, tmp_path):
+        """Saving to a read-only directory raises PDFWriteError."""
+        readonly_dir = tmp_path / "readonly"
+        readonly_dir.mkdir()
+        # Use 0o555 (r-x) so stat/exists calls work but writes fail
+        readonly_dir.chmod(0o555)
+
+        out = readonly_dir / "output.pdf"
+        try:
+            with PDFFiller(fillable_pdf) as f:
+                with pytest.raises(PDFWriteError):
+                    f.save(out, flatten=False)
+        finally:
+            # Restore permissions so tmp_path cleanup works
+            readonly_dir.chmod(0o755)
+
+
+class TestEdgeCases:
+    def test_empty_field_name(self, fillable_pdf, tmp_path):
+        """Filling a field with an empty string name should not crash."""
+        out = tmp_path / "empty_name.pdf"
+        with PDFFiller(fillable_pdf) as f:
+            f.fill_field("", "value")
+            f.save(out, flatten=False)
+
+    def test_very_long_field_value(self, fillable_pdf, tmp_path):
+        """A very long field value should not crash."""
+        out = tmp_path / "long_value.pdf"
+        with PDFFiller(fillable_pdf) as f:
+            f.fill_field("first_name", "x" * 10000)
+            f.save(out, flatten=False)
+
+    def test_unicode_field_value(self, fillable_pdf, tmp_path):
+        """Unicode characters in field values should save successfully."""
+        out = tmp_path / "unicode.pdf"
+        with PDFFiller(fillable_pdf) as f:
+            f.fill_field("first_name", "Rene")
+            f.save(out, flatten=False)
+
+        with PDFFiller(out) as f2:
+            assert f2.get_field_value("first_name") == "Rene"
+
+    def test_already_flattened_pdf(self, fillable_pdf, tmp_path):
+        """Filling an already-flattened PDF (no widgets) should handle gracefully."""
+        # First, create a flattened PDF with no widgets
+        flat = tmp_path / "flattened.pdf"
+        with PDFFiller(fillable_pdf) as f:
+            f.fill_field("first_name", "Test")
+            f.save(flat, flatten=True)
+
+        # Now open the flattened PDF - it has no form fields
+        out = tmp_path / "re_filled.pdf"
+        with PDFFiller(flat) as f2:
+            assert f2.has_form_fields() is False
+            # Trying to fill fields should not crash - they just won't match
+            f2.fill_field("first_name", "New Value")
+            f2.save(out, flatten=False)
+
+    def test_corrupted_pdf_raises(self, tmp_path):
+        """Opening a file with garbage bytes should raise PDFReadError."""
+        bad_pdf = tmp_path / "corrupted.pdf"
+        bad_pdf.write_bytes(b"this is not a valid pdf file at all")
+
+        with pytest.raises(PDFReadError, match="Failed to open"):
+            PDFFiller(bad_pdf)

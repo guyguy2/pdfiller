@@ -2,6 +2,7 @@
 Core functionality for PDF form filling
 """
 
+import os
 import fitz  # PyMuPDF
 from typing import Dict, List, Optional, Tuple, Union, Any
 from pathlib import Path
@@ -28,7 +29,7 @@ class PDFFiller:
         filler.save("output.pdf", flatten=True)
     """
 
-    def __init__(self, pdf_path: Union[str, Path], auto_fill_dates: bool = True):
+    def __init__(self, pdf_path: Union[str, Path], auto_fill_dates: bool = True, strict: bool = False):
         """
         Initialize PDFFiller with a PDF file
 
@@ -36,12 +37,15 @@ class PDFFiller:
             pdf_path: Path to the input PDF file
             auto_fill_dates: If True, empty date fields are filled with today's
                 date during save(). Set to False to disable this behavior.
+            strict: If True, validate field names exist in the PDF before
+                queuing fill_field, check_box, and uncheck_box operations.
 
         Raises:
             PDFReadError: If PDF cannot be opened
         """
         self.pdf_path = Path(pdf_path)
         self.auto_fill_dates = auto_fill_dates
+        self._strict = strict
 
         if not self.pdf_path.exists():
             raise PDFReadError(f"PDF file not found: {pdf_path}")
@@ -60,9 +64,11 @@ class PDFFiller:
 
         self._fields_to_fill: Dict[str, Any] = {}
         self._checkboxes_to_check: set = set()
+        self._checkboxes_to_uncheck: set = set()
         self._text_overlays: list = []
         self._image_overlays: list = []
         self._preserve_existing = True
+        self._saved = False
 
     def __enter__(self):
         """Context manager support"""
@@ -137,7 +143,12 @@ class PDFFiller:
 
         Returns:
             Self for method chaining
+
+        Raises:
+            FieldNotFoundError: If strict mode is enabled and field not found
         """
+        if self._strict:
+            self.validate_fields([field_name], raise_error=True)
         self._fields_to_fill[field_name] = value
         return self
 
@@ -163,21 +174,35 @@ class PDFFiller:
 
         Returns:
             Self for method chaining
+
+        Raises:
+            FieldNotFoundError: If strict mode is enabled and field not found
         """
+        if self._strict:
+            self.validate_fields([field_name], raise_error=True)
         self._checkboxes_to_check.add(field_name)
         return self
 
     def uncheck_box(self, field_name: str) -> 'PDFFiller':
         """
-        Uncheck a checkbox field (removes from check list)
+        Uncheck a checkbox field
+
+        Removes from the check list and explicitly unchecks it in the PDF,
+        even if the box was already checked before this filler was created.
 
         Args:
             field_name: Name of the checkbox field
 
         Returns:
             Self for method chaining
+
+        Raises:
+            FieldNotFoundError: If strict mode is enabled and field not found
         """
+        if self._strict:
+            self.validate_fields([field_name], raise_error=True)
         self._checkboxes_to_check.discard(field_name)
+        self._checkboxes_to_uncheck.add(field_name)
         return self
 
     def preserve_existing_fields(self, preserve: bool = True) -> 'PDFFiller':
@@ -238,6 +263,10 @@ class PDFFiller:
 
                 elif field_name in self._checkboxes_to_check:
                     widget.field_value = True
+                    widget.update()
+
+                elif field_name in self._checkboxes_to_uncheck:
+                    widget.field_value = False
                     widget.update()
 
                 # Auto-fill date fields with today's date if empty and enabled
@@ -475,8 +504,13 @@ class PDFFiller:
                 for widget in page.widgets():
                     field_name = widget.field_name
 
-                    # Only overlay fields we filled
-                    if field_name in self._fields_to_fill or field_name in self._checkboxes_to_check:
+                    # Overlay fields we filled, checked, unchecked, or auto-dated
+                    is_auto_dated = (
+                        self.auto_fill_dates
+                        and self._is_date_field(field_name)
+                        and field_name not in self._fields_to_fill
+                    )
+                    if field_name in self._fields_to_fill or field_name in self._checkboxes_to_check or field_name in self._checkboxes_to_uncheck or is_auto_dated:
                         value = widget.field_value
 
                         if value and value not in ['Off', '']:
@@ -520,6 +554,9 @@ class PDFFiller:
         """
         Save the filled PDF
 
+        This method is terminal - it can only be called once per PDFFiller
+        instance. Create a new instance to save again.
+
         Args:
             output_path: Path for the output PDF
             flatten: If True, flatten the form to ensure visibility (recommended)
@@ -528,9 +565,25 @@ class PDFFiller:
             Path to the saved PDF
 
         Raises:
-            PDFWriteError: If PDF cannot be saved
+            PDFFillerError: If save() has already been called
+            PDFWriteError: If PDF cannot be saved or output path is not writable
         """
+        if self._saved:
+            raise PDFFillerError(
+                "save() has already been called on this filler. "
+                "Create a new PDFFiller instance to save again."
+            )
+
         output_path = Path(output_path)
+
+        # Validate output path is writable
+        if output_path.exists():
+            if not os.access(str(output_path), os.W_OK):
+                raise PDFWriteError(f"Output file is not writable: {output_path}")
+        else:
+            parent = output_path.parent
+            if not os.access(str(parent), os.W_OK):
+                raise PDFWriteError(f"Output directory is not writable: {parent}")
 
         try:
             if flatten:
@@ -541,6 +594,7 @@ class PDFFiller:
                 self._apply_image_overlays()
                 self.doc.save(str(output_path), garbage=4, deflate=True)
 
+            self._saved = True
             return output_path
 
         except Exception as e:

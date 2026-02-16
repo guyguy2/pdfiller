@@ -2,8 +2,6 @@
 Tests for pdfiller.memory module.
 """
 
-import json
-import pytest
 
 from pdfiller.memory import (
     _normalize,

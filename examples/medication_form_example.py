@@ -61,7 +61,7 @@ def fill_medication_form():
         # Save with flattening
         output_path = filler.save(output_pdf, flatten=True)
 
-        print(f"Done: Medication form filled successfully!")
+        print("Done: Medication form filled successfully!")
         print(f"Saved to: {output_path}")
 
 
