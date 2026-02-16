@@ -2,11 +2,12 @@
 Tests for pdfiller.cli module.
 """
 
+import csv
+import io
 import json
 import subprocess
 import sys
 
-import pytest
 
 
 def run_cli(*args):
@@ -28,11 +29,45 @@ class TestListCommand:
 
     def test_list_fields_json_output(self, fillable_pdf, tmp_path):
         out = tmp_path / "fields.json"
-        result = run_cli("list", "-i", str(fillable_pdf), "-o", str(out))
+        result = run_cli("list", "-i", str(fillable_pdf), "--format", "json", "-o", str(out))
         assert result.returncode == 0
         data = json.loads(out.read_text())
         names = [f["name"] for f in data]
         assert "first_name" in names
+
+    def test_list_format_json_stdout(self, fillable_pdf):
+        result = run_cli("list", "-i", str(fillable_pdf), "--format", "json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        names = [f["name"] for f in data]
+        assert "first_name" in names
+
+    def test_list_format_csv_stdout(self, fillable_pdf):
+        result = run_cli("list", "-i", str(fillable_pdf), "--format", "csv")
+        assert result.returncode == 0
+        reader = csv.reader(io.StringIO(result.stdout))
+        rows = list(reader)
+        header = rows[0]
+        assert header == ["name", "type", "value", "page"]
+        names = [row[0] for row in rows[1:]]
+        assert "first_name" in names
+
+    def test_list_format_csv_to_file(self, fillable_pdf, tmp_path):
+        out = tmp_path / "fields.csv"
+        result = run_cli("list", "-i", str(fillable_pdf), "--format", "csv", "-o", str(out))
+        assert result.returncode == 0
+        reader = csv.reader(io.StringIO(out.read_text()))
+        rows = list(reader)
+        assert rows[0] == ["name", "type", "value", "page"]
+        assert len(rows) > 1
+
+    def test_list_format_table_to_file(self, fillable_pdf, tmp_path):
+        out = tmp_path / "fields.txt"
+        result = run_cli("list", "-i", str(fillable_pdf), "--format", "table", "-o", str(out))
+        assert result.returncode == 0
+        content = out.read_text()
+        assert "first_name" in content
+        assert "Type:" in content
 
     def test_list_missing_pdf(self, tmp_path):
         result = run_cli("list", "-i", str(tmp_path / "nope.pdf"))
@@ -105,6 +140,41 @@ class TestFillCommand:
         assert result.returncode == 0
         assert "Dry run" in result.stdout
         assert "first_name = Alice" in result.stdout
+
+    def test_verbose_shows_fields(self, fillable_pdf, tmp_path):
+        out = tmp_path / "filled.pdf"
+        result = run_cli(
+            "fill", "-i", str(fillable_pdf),
+            "-o", str(out),
+            "-f", "first_name=Alice",
+            "-v",
+        )
+        assert result.returncode == 0
+        assert "Fill plan" in result.stdout
+        assert "first_name = Alice" in result.stdout
+        assert "Done:" in result.stdout
+
+    def test_verbose_shows_checkboxes(self, fillable_pdf, tmp_path):
+        out = tmp_path / "filled.pdf"
+        result = run_cli(
+            "fill", "-i", str(fillable_pdf),
+            "-o", str(out),
+            "-c", "agree_terms",
+            "-v",
+        )
+        assert result.returncode == 0
+        assert "agree_terms [check]" in result.stdout
+
+    def test_verbose_shows_auto_date_note(self, fillable_pdf, tmp_path):
+        out = tmp_path / "filled.pdf"
+        result = run_cli(
+            "fill", "-i", str(fillable_pdf),
+            "-o", str(out),
+            "-f", "first_name=Alice",
+            "--verbose",
+        )
+        assert result.returncode == 0
+        assert "Auto-fill dates: enabled" in result.stdout
 
 
 class TestTemplateCommand:

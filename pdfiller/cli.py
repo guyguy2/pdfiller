@@ -3,6 +3,8 @@ Command-line interface for PDFiller
 """
 
 import argparse
+import csv
+import io
 import json
 import sys
 from pathlib import Path
@@ -26,26 +28,59 @@ def load_values_from_json(json_path: Path) -> Dict[str, Any]:
     return data
 
 
+def _format_fields_table(fields, input_path: str) -> str:
+    """Format fields as a human-readable table."""
+    lines = [f"\nFound {len(fields)} fields in {input_path}:\n"]
+    for field in fields:
+        lines.append(f"  - {field['name']}")
+        lines.append(f"    Type: {field['type']}")
+        if field['value']:
+            lines.append(f"    Current value: {field['value']}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _format_fields_json(fields) -> str:
+    """Format fields as JSON."""
+    return json.dumps(fields, indent=2)
+
+
+def _format_fields_csv(fields) -> str:
+    """Format fields as CSV with columns: name, type, value, page."""
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["name", "type", "value", "page"])
+    for field in fields:
+        writer.writerow([
+            field['name'],
+            field['type'],
+            field.get('value', ''),
+            field.get('page', ''),
+        ])
+    return buf.getvalue()
+
+
 def list_fields_command(args):
     """List all fields in a PDF"""
     try:
         with PDFFiller(args.input) as filler:
             fields = filler.list_fields()
 
+            fmt = getattr(args, 'format', None) or 'table'
+
+            if fmt == 'json':
+                output = _format_fields_json(fields)
+            elif fmt == 'csv':
+                output = _format_fields_csv(fields)
+            else:
+                output = _format_fields_table(fields, args.input)
+
             if args.output:
-                # Save to JSON
                 with open(args.output, 'w') as f:
-                    json.dump(fields, f, indent=2)
+                    f.write(output)
                 print(f"Saved: {args.output}")
             else:
-                # Print to console
-                print(f"\nFound {len(fields)} fields in {args.input}:\n")
-                for field in fields:
-                    print(f"  - {field['name']}")
-                    print(f"    Type: {field['type']}")
-                    if field['value']:
-                        print(f"    Current value: {field['value']}")
-                    print()
+                print(output, end='' if fmt == 'csv' else '\n')
 
     except PDFFillerError as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -120,6 +155,36 @@ def fill_command(args):
                 if not filler._fields_to_fill and not filler._checkboxes_to_check:
                     print("  (no fields to fill)")
                 return
+
+            # Verbose output before save
+            verbose = getattr(args, 'verbose', False)
+            if verbose:
+                print(f"Fill plan for {args.input}:")
+
+                if filler._fields_to_fill:
+                    print("  Fields:")
+                    for name, value in filler._fields_to_fill.items():
+                        print(f"    {name} = {value}")
+
+                if filler._checkboxes_to_check:
+                    print("  Checkboxes:")
+                    for name in filler._checkboxes_to_check:
+                        print(f"    {name} [check]")
+
+                if filler.auto_fill_dates:
+                    print("  Auto-fill dates: enabled (empty date fields will use today's date)")
+
+                if args.preserve_existing:
+                    # Identify fields that would be skipped
+                    existing_fields = filler.list_fields()
+                    skipped = [
+                        f['name'] for f in existing_fields
+                        if f['value'] and f['name'] in filler._fields_to_fill
+                    ]
+                    if skipped:
+                        print("  Skipped (preserve existing):")
+                        for name in skipped:
+                            print(f"    {name}")
 
             # Save the filled PDF
             output_path = filler.save(args.output, flatten=args.flatten)
@@ -241,7 +306,9 @@ Examples:
     # List command
     list_parser = subparsers.add_parser('list', help='List all fields in a PDF')
     list_parser.add_argument('-i', '--input', required=True, help='Input PDF file')
-    list_parser.add_argument('-o', '--output', help='Output JSON file (optional)')
+    list_parser.add_argument('-o', '--output', help='Save output to file (optional)')
+    list_parser.add_argument('--format', choices=['table', 'json', 'csv'], default='table',
+                             help='Output format (default: table)')
 
     # Fill command
     fill_parser = subparsers.add_parser('fill', help='Fill PDF form fields')
@@ -258,6 +325,8 @@ Examples:
                              help='Validate field names before filling')
     fill_parser.add_argument('--dry-run', action='store_true',
                              help='Show what would be filled without saving')
+    fill_parser.add_argument('-v', '--verbose', action='store_true',
+                             help='Print detailed info about fields being filled')
 
     # Inspect command
     inspect_parser = subparsers.add_parser('inspect', help='Inspect text layout of a non-fillable PDF')
