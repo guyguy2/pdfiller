@@ -12,7 +12,7 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 | Order | Item | Why first |
 |-------|------|-----------|
-| 1 | P2 CI, P3 ruff | Locks in quality before further work |
+| 1 | P3 ruff | Locks in quality before further work |
 | 2 | C5 flatten textbox rendering | Most visible output-quality win |
 | 3 | U1 CLI overlay support | Closes biggest workflow gap |
 | 4 | Everything else | Opportunistic |
@@ -24,12 +24,12 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 ### High priority
 
 - **C4. Temp file collision in `_flatten_with_overlays`** (S)
-  Temp path is derived deterministically from the output path (`.temp.pdf` suffix, `core.py:635`). Two concurrent fills targeting the same output (batch mode, parallel invocations) clobber each other's temp file.
+  Temp path is derived deterministically from the output path (`.temp.pdf` suffix, `core.py:646`). Two concurrent fills targeting the same output (batch mode, parallel invocations) clobber each other's temp file.
   *Fix:* `tempfile.NamedTemporaryFile(dir=output_dir, suffix=".pdf", delete=False)`.
   *Verify:* temp name unique per call; existing flatten tests still pass.
 
 - **C5. Flatten overlay ignores multiline and overflowing values** (M)
-  The flatten pass (`core.py:672`) renders every field value with a single `insert_text` call at a fixed offset. Long values overflow the field rect; multiline text field values render as one line.
+  The flatten pass (`core.py:683`) renders every field value with a single `insert_text` call at a fixed offset. Long values overflow the field rect; multiline text field values render as one line.
   *Fix:* use `insert_textbox` clipped to the widget rect; shrink font size stepwise until the text fits.
   *Verify:* test with a long value and a multiline value - rendered text stays inside the widget rect (assert via `get_text` positions).
 
@@ -61,7 +61,7 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
   *Verify:* existing save/load tests pass; simulated failure leaves the original intact.
 
 - **C12. `pending_operations` and `--dry-run` omit half the state** (M)
-  Neither includes unchecks, text overlays, image overlays, or auto-date targets that `save()` will fill (`core.py:770`, `cli.py:165`).
+  Neither includes unchecks, text overlays, image overlays, or auto-date targets that `save()` will fill (`core.py:788`, `cli.py:165`).
   *Fix:* extend `pending_operations` with `uncheck`, `text_overlays`, `image_overlays`, `auto_date_fields` (computed); render all in dry-run output.
   *Verify:* dry-run on a PDF with an empty `sign_date` lists it as auto-date.
 
@@ -109,7 +109,7 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
   *Verify:* `defaults add personal.phone 555-1234` twice yields a two-element list in `defaults show`.
 
 - **U7. Date format hardcoded US style** (S)
-  `_format_today_date()` always emits M/D/YYYY (`core.py:341`).
+  `_format_today_date()` always emits M/D/YYYY (`core.py:353`).
   *Fix:* `date_format` strftime parameter on `PDFFiller`, `--date-format` CLI flag; consider `_meta.date_format` defaults key for persistence.
   *Verify:* `--date-format %Y-%m-%d` produces ISO dates in auto-filled fields.
 
@@ -128,7 +128,7 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 ## 4. Architecture and Extensibility
 
 - **A1. `core.py` heading toward god class** (M)
-  `PDFFiller` handles form filling, overlay drawing, flattening, size policy, and date heuristics (785 lines).
+  `PDFFiller` handles form filling, overlay drawing, flattening, size policy, and date heuristics (801 lines).
   *Fix:* before adding features, split `_flatten_with_overlays` and helpers into `flatten.py`, and overlay queue/apply logic into `overlays.py`, keeping `PDFFiller` as facade.
   *Verify:* no public API change; tests pass unmodified.
 
@@ -138,12 +138,12 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
   *Verify:* `clear_matchers(); reset_matchers()` restores exact/normalized behavior; autouse fixture isolates tests.
 
 - **A3. Overlay dicts are stringly typed** (S)
-  `_text_overlays` entries are raw dicts with a `type` discriminator (`core.py:472`).
+  `_text_overlays` entries are raw dicts with a `type` discriminator (`core.py:483`).
   *Fix:* small `@dataclass TextOverlay` / `BoxOverlay` / `ImageOverlay`; makes `pending_operations` richer for free (pairs with C12).
   *Verify:* type checker clean; behavior unchanged.
 
 - **A4. CLI dispatch boilerplate** (S)
-  `if args.command == ...` chain duplicates the subparser list (`cli.py:532`).
+  `if args.command == ...` chain duplicates the subparser list (`cli.py:533`).
   *Fix:* `set_defaults(func=...)` per subparser; call `args.func(args)`.
   *Verify:* all CLI tests pass.
 
@@ -161,24 +161,19 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 ## 5. Packaging, Tooling, and Tests
 
-- **P2. No CI** (S)
-  287 tests exist; nothing runs them automatically.
-  *Fix:* GitHub Actions - `uv sync && uv run pytest` across supported Python matrix, plus lint job.
-  *Verify:* green run on push; failing test blocks merge.
-
 - **P3. No lint/format config** (S)
   *Fix:* adopt `ruff` (lint + format), config in pyproject.toml. Adoption cost is low now; it will not be later.
-  *Verify:* `ruff check .` clean; CI enforces.
+  *Verify:* `ruff check .` clean.
 
 - **P4. No `py.typed` marker** (S)
   Type hints exist throughout but type checkers ignore installed packages without `py.typed`.
-  *Fix:* add marker file; consider mypy/pyright in CI.
+  *Fix:* add marker file; consider running mypy/pyright locally.
   *Verify:* `pyright` resolves `PDFFiller` types from an installed wheel.
 
 - **P5. Python 3.8 is EOL** (M)
   3.8 (EOL Oct 2024) forces `Optional[X]`/`Dict` syntax and blocks modern PyMuPDF.
   *Fix:* bump `requires-python` to >=3.9 (or 3.10); modernize annotations opportunistically; CHANGELOG entry.
-  *Verify:* CI matrix updated; classifiers match.
+  *Verify:* classifiers match.
 
 - **P6. Legacy `fitz` import** (S)
   Canonical import is now `import pymupdf`; `import fitz` is the deprecated alias.
@@ -186,13 +181,13 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
   *Verify:* no `import fitz` remains; tests pass.
 
 - **P7. No coverage measurement** (S)
-  *Fix:* add `pytest-cov` to dev group; coverage report (and later a gate) in CI so gaps like the C5 overflow paths become visible.
-  *Verify:* coverage report in CI output.
+  *Fix:* add `pytest-cov` to dev group so gaps like the C5 overflow paths become visible.
+  *Verify:* `uv run pytest --cov=pdfiller` produces a coverage report.
 
-- **P8. Example PDFs may contain real data** (S)
-  `examples/680-001_AB.pdf` and its filled output look like a real-world form committed ad hoc; the filled one may contain personal data.
-  *Fix:* inspect contents; keep only sanitized demo files; add pattern to .gitignore for `*_filled.pdf` in examples.
-  *Verify:* repo contains no PII; git history scrubbed if needed.
+- **P8. Example PDFs may contain real data** (S) - partially done 2026-07-20
+  Inspection confirmed `examples/680-001_AB_filled.pdf` contains real PII (names, DOB, phone). Neither PDF was ever committed, so no history scrub is needed. `examples/*_filled.pdf` is now in .gitignore.
+  *Remaining:* decide fate of the blank `examples/680-001_AB.pdf` (real-world form, still untracked) - replace with a sanitized demo form or drop it.
+  *Verify:* repo contains no PII; examples/ holds only sanitized demo files.
 
 ---
 
@@ -242,6 +237,10 @@ From this improvement plan (completed 2026-07-19):
 - **C3** - `batch` CLI command exits 1 when any CSV row fails
 - **C6** - `PDFReadError` and `PDFWriteError` exported from `pdfiller` package (`__init__.py` imports and `__all__`)
 - **P1** - Removed unused `numpy` and `pillow` runtime dependencies; PyMuPDF is the only runtime dependency
+
+Dropped:
+
+- **P2 (CI)** - dropped 2026-07-20: local solo project, tests run each session; revisit if the repo gains a GitHub remote or collaborators
 
 From the original audit (numbering refers to that audit's scheme):
 
