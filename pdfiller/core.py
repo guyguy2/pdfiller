@@ -2,13 +2,21 @@
 Core functionality for PDF form filling
 """
 
+import logging
 import os
+import re
 import fitz  # PyMuPDF
 from typing import Dict, List, Optional, Tuple, Union, Any
 from pathlib import Path
 from datetime import datetime
 
 from .exceptions import PDFFillerError, FieldNotFoundError, PDFReadError, PDFWriteError
+
+logger = logging.getLogger(__name__)
+
+# Default size limits (bytes)
+DEFAULT_MAX_PDF_SIZE = 100 * 1024 * 1024   # 100 MB
+DEFAULT_MAX_IMAGE_SIZE = 50 * 1024 * 1024  # 50 MB
 
 
 class PDFFiller:
@@ -29,7 +37,14 @@ class PDFFiller:
         filler.save("output.pdf", flatten=True)
     """
 
-    def __init__(self, pdf_path: Union[str, Path], auto_fill_dates: bool = True, strict: bool = False):
+    def __init__(
+        self,
+        pdf_path: Union[str, Path],
+        auto_fill_dates: bool = True,
+        strict: bool = False,
+        max_pdf_size: Optional[int] = DEFAULT_MAX_PDF_SIZE,
+        max_image_size: Optional[int] = DEFAULT_MAX_IMAGE_SIZE,
+    ):
         """
         Initialize PDFFiller with a PDF file
 
@@ -39,22 +54,50 @@ class PDFFiller:
                 date during save(). Set to False to disable this behavior.
             strict: If True, validate field names exist in the PDF before
                 queuing fill_field, check_box, and uncheck_box operations.
+            max_pdf_size: Maximum PDF file size in bytes (default 100 MB).
+                Set to None to disable the check.
+            max_image_size: Maximum image file size in bytes (default 50 MB).
+                Set to None to disable the check.
 
         Raises:
             PDFReadError: If PDF cannot be opened
+            PDFFillerError: If PDF exceeds max_pdf_size
         """
         self.pdf_path = Path(pdf_path)
         self.auto_fill_dates = auto_fill_dates
         self._strict = strict
+        self._max_pdf_size = max_pdf_size
+        self._max_image_size = max_image_size
 
         if not self.pdf_path.exists():
             raise PDFReadError(f"PDF file not found: {pdf_path}")
 
+        # Check PDF file size against the configured limit
+        if self._max_pdf_size is not None:
+            file_size = self.pdf_path.stat().st_size
+            if file_size > self._max_pdf_size:
+                raise PDFFillerError(
+                    f"PDF file size ({file_size} bytes) exceeds maximum "
+                    f"allowed size ({self._max_pdf_size} bytes): {pdf_path}"
+                )
+            if file_size > self._max_pdf_size * 0.5:
+                logger.warning(
+                    "PDF file size (%d bytes) is over 50%% of the "
+                    "configured limit (%d bytes): %s",
+                    file_size, self._max_pdf_size, pdf_path,
+                )
+
         try:
             # Suppress non-fatal MuPDF errors (e.g. missing XObject font resources
             # in malformed PDFs) that clutter stderr but don't affect output.
+            # Scope the suppression to the open call and restore the prior
+            # global setting so we don't silence genuine errors elsewhere.
+            prev_display_errors = fitz.TOOLS.mupdf_display_errors()
             fitz.TOOLS.mupdf_display_errors(False)
-            self.doc = fitz.open(str(self.pdf_path))
+            try:
+                self.doc = fitz.open(str(self.pdf_path))
+            finally:
+                fitz.TOOLS.mupdf_display_errors(prev_display_errors)
         except Exception as e:
             raise PDFReadError(f"Failed to open PDF: {e}")
 
@@ -93,7 +136,9 @@ class PDFFiller:
         List all form fields across all pages in the PDF
 
         Returns:
-            List of dictionaries with field information including page number
+            List of dictionaries with field information including page number.
+            Radio button and dropdown/combobox fields include an 'options' key
+            listing their available choices.
         """
         fields = []
 
@@ -112,6 +157,15 @@ class PDFFiller:
                         'y1': widget.rect.y1,
                     }
                 }
+
+                # Include available options for radio buttons and dropdowns
+                if widget.field_type in (
+                    fitz.PDF_WIDGET_TYPE_RADIOBUTTON,
+                    fitz.PDF_WIDGET_TYPE_COMBOBOX,
+                    fitz.PDF_WIDGET_TYPE_LISTBOX,
+                ):
+                    field_info['options'] = widget.choice_values or []
+
                 fields.append(field_info)
 
         return fields
@@ -161,8 +215,58 @@ class PDFFiller:
 
         Returns:
             Self for method chaining
+
+        Raises:
+            FieldNotFoundError: If strict mode is enabled and a field is not found
         """
-        self._fields_to_fill.update(fields)
+        for name, value in fields.items():
+            self.fill_field(name, value)
+        return self
+
+    def fill(self, data: Dict[str, Any]) -> 'PDFFiller':
+        """
+        High-level fill method that auto-detects fillable vs non-fillable PDFs.
+
+        For fillable PDFs (with AcroForm fields): delegates to fill_fields()
+        to set form field values by name.
+
+        For non-fillable PDFs: expects each key to map to a dict with
+        placement coordinates, e.g.::
+
+            {
+                "Name": {"text": "Jane Doe", "x": 200, "y": 150, "page": 0},
+                "Date": {"text": "3/15/2026", "x": 200, "y": 200, "page": 0},
+            }
+
+        Optional keys per entry: font_size (default 10), font_name (default
+        "helv"), color (default (0,0,0)).
+
+        Args:
+            data: Field values (fillable) or coordinate-based text placements
+                (non-fillable).
+
+        Returns:
+            Self for method chaining
+        """
+        if self.has_form_fields():
+            self.fill_fields(data)
+        else:
+            for label, spec in data.items():
+                if not isinstance(spec, dict) or "text" not in spec:
+                    raise PDFFillerError(
+                        f"Non-fillable PDF requires coordinate-based data for "
+                        f"'{label}'. Expected a dict with at least 'text', 'x', "
+                        f"and 'y' keys."
+                    )
+                self.insert_text(
+                    text=spec["text"],
+                    x=spec.get("x", 0),
+                    y=spec.get("y", 0),
+                    page_num=spec.get("page", 0),
+                    font_size=spec.get("font_size", 10),
+                    font_name=spec.get("font_name", "helv"),
+                    color=spec.get("color", (0, 0, 0)),
+                )
         return self
 
     def check_box(self, field_name: str) -> 'PDFFiller':
@@ -218,20 +322,32 @@ class PDFFiller:
         self._preserve_existing = preserve
         return self
 
+    # Date fields whose value is not "today": birthdays, validity ranges, etc.
+    # Auto-dating these silently corrupts the form, so they are excluded.
+    _AUTO_DATE_EXCLUDED_TOKENS = frozenset({
+        "birth", "dob", "expire", "expires", "expiry", "expiration",
+        "effective", "start", "end", "from", "to",
+    })
+
     @staticmethod
     def _is_date_field(field_name: str) -> bool:
         """
-        Check if a field name suggests it's a date field
+        Check if a field name suggests a date that should default to today
 
         Args:
             field_name: Name of the field to check
 
         Returns:
-            True if the field name suggests it contains a date
+            True if the field is a date field eligible for auto-fill with
+            today's date (e.g. sign_date). Fields naming other kinds of dates
+            (date_of_birth, expiration_date, start_date) return False.
         """
-        field_lower = field_name.lower()
-        date_indicators = ['date', '_date', '-date', 'dated']
-        return any(indicator in field_lower for indicator in date_indicators)
+        # Normalize camelCase boundaries (SignDate -> Sign_Date) then split into tokens
+        normalized = re.sub(r"([a-z])([A-Z])", r"\1_\2", field_name).lower()
+        tokens = set(re.split(r"[_\-\s]+", normalized))
+        if "date" not in tokens and "dated" not in tokens:
+            return False
+        return not (tokens & PDFFiller._AUTO_DATE_EXCLUDED_TOKENS)
 
     @staticmethod
     def _format_today_date() -> str:
@@ -258,7 +374,21 @@ class PDFFiller:
                         continue
 
                     value = self._fields_to_fill[field_name]
-                    widget.field_value = value
+
+                    # Validate option value for radio buttons and dropdowns
+                    if widget.field_type in (
+                        fitz.PDF_WIDGET_TYPE_RADIOBUTTON,
+                        fitz.PDF_WIDGET_TYPE_COMBOBOX,
+                        fitz.PDF_WIDGET_TYPE_LISTBOX,
+                    ):
+                        options = widget.choice_values or []
+                        if options and str(value) not in options:
+                            raise PDFFillerError(
+                                f"Invalid option '{value}' for field '{field_name}'. "
+                                f"Valid options: {options}"
+                            )
+
+                    widget.field_value = str(value)
                     widget.update()
 
                 elif field_name in self._checkboxes_to_check:
@@ -348,6 +478,8 @@ class PDFFiller:
         Returns:
             Self for method chaining
         """
+        if page_num < 0 or page_num >= self.page_count:
+            raise PDFFillerError(f"Page {page_num} out of range (0-{self.page_count - 1})")
         self._text_overlays.append({
             "type": "point",
             "text": text,
@@ -385,6 +517,8 @@ class PDFFiller:
         Returns:
             Self for method chaining
         """
+        if page_num < 0 or page_num >= self.page_count:
+            raise PDFFillerError(f"Page {page_num} out of range (0-{self.page_count - 1})")
         self._text_overlays.append({
             "type": "box",
             "text": text,
@@ -422,13 +556,31 @@ class PDFFiller:
         Raises:
             PDFFillerError: If the image file does not exist
         """
+        if page_num < 0 or page_num >= self.page_count:
+            raise PDFFillerError(f"Page {page_num} out of range (0-{self.page_count - 1})")
         image_path = Path(image_path)
         if not image_path.exists():
             raise PDFFillerError(f"Image file not found: {image_path}")
 
+        # Check image file size against the configured limit
+        if self._max_image_size is not None:
+            img_size = image_path.stat().st_size
+            if img_size > self._max_image_size:
+                raise PDFFillerError(
+                    f"Image file size ({img_size} bytes) exceeds maximum "
+                    f"allowed size ({self._max_image_size} bytes): {image_path}"
+                )
+            if img_size > self._max_image_size * 0.5:
+                logger.warning(
+                    "Image file size (%d bytes) is over 50%% of the "
+                    "configured limit (%d bytes): %s",
+                    img_size, self._max_image_size, image_path,
+                )
+
         # Validate the file is a recognizable image format
         try:
-            fitz.Pixmap(str(image_path))
+            pix = fitz.Pixmap(str(image_path))
+            pix = None
         except Exception:
             raise PDFFillerError(f"Invalid or unsupported image file: {image_path}")
 
@@ -502,41 +654,39 @@ class PDFFiller:
             for page_num in range(self.page_count):
                 page = self.doc[page_num]
                 for widget in page.widgets():
-                    field_name = widget.field_name
+                    # Overlay any field that has a visible value. This covers
+                    # fields we filled, checkboxes we checked, auto-dated
+                    # fields, AND values already present in the source PDF.
+                    # The latter would otherwise be lost when the widget
+                    # annotations are deleted below.
+                    value = widget.field_value
 
-                    # Overlay fields we filled, checked, unchecked, or auto-dated
-                    is_auto_dated = (
-                        self.auto_fill_dates
-                        and self._is_date_field(field_name)
-                        and field_name not in self._fields_to_fill
-                    )
-                    if field_name in self._fields_to_fill or field_name in self._checkboxes_to_check or field_name in self._checkboxes_to_uncheck or is_auto_dated:
-                        value = widget.field_value
+                    if value and value not in ['Off', '']:
+                        rect = widget.rect
 
-                        if value and value not in ['Off', '']:
-                            rect = widget.rect
+                        # Checkboxes report their "on" state as any non-Off
+                        # export value (e.g. "On", "Yes", True); render an X
+                        # mark for all of them rather than the raw value.
+                        if widget.field_type == fitz.PDF_WIDGET_TYPE_CHECKBOX:
+                            value = 'X'
+                        else:
+                            value = str(value)
 
-                            # Convert checkbox values
-                            if value in ['On', True]:
-                                value = 'X'
-                            else:
-                                value = str(value)
+                        # Calculate font size based on rectangle height
+                        height = rect.height
+                        font_size = min(height * 0.7, 10)  # Max 10pt
 
-                            # Calculate font size based on rectangle height
-                            height = rect.height
-                            font_size = min(height * 0.7, 10)  # Max 10pt
+                        # Position text
+                        x = rect.x0 + 2
+                        y = rect.y0 + (height * 0.75)
 
-                            # Position text
-                            x = rect.x0 + 2
-                            y = rect.y0 + (height * 0.75)
-
-                            page.insert_text(
-                                (x, y),
-                                value,
-                                fontsize=font_size,
-                                color=(0, 0, 0),
-                                fontname="helv"
-                            )
+                        page.insert_text(
+                            (x, y),
+                            value,
+                            fontsize=font_size,
+                            color=(0, 0, 0),
+                            fontname="helv"
+                        )
 
             # Remove widget annotations so only the text overlays remain
             for page_num in range(self.page_count):
@@ -576,6 +726,12 @@ class PDFFiller:
 
         output_path = Path(output_path)
 
+        if output_path.resolve() == self.pdf_path.resolve():
+            raise PDFWriteError(
+                f"Output path is the same as the input PDF: {output_path}. "
+                "Choose a different output path to avoid destroying the source file."
+            )
+
         # Validate output path is writable
         if output_path.exists():
             if not os.access(str(output_path), os.W_OK):
@@ -597,6 +753,8 @@ class PDFFiller:
             self._saved = True
             return output_path
 
+        except PDFFillerError:
+            raise
         except Exception as e:
             raise PDFWriteError(f"Failed to save PDF: {e}")
 
@@ -626,9 +784,18 @@ class PDFFiller:
 
         return results
 
+    @property
+    def pending_operations(self) -> Dict[str, Any]:
+        """Summary of queued operations not yet saved.
+
+        Returns:
+            Dict with 'fields', 'check', and 'uncheck' keys.
+        """
+        return {
+            "fields": dict(self._fields_to_fill),
+            "check": set(self._checkboxes_to_check),
+            "uncheck": set(self._checkboxes_to_uncheck),
+        }
+
     def __repr__(self):
-        count = 0
-        for page_num in range(self.page_count):
-            for _ in self.doc[page_num].widgets():
-                count += 1
-        return f"PDFFiller(pdf='{self.pdf_path.name}', fields={count})"
+        return f"PDFFiller(pdf='{self.pdf_path.name}', pages={self.page_count})"

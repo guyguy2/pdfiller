@@ -4,13 +4,13 @@ A simple Python library and CLI tool for filling PDF forms with automatic flatte
 
 ## Features
 
-- 🔧 **Fill text fields** - Set values for any text input field
-- ☑️ **Check/uncheck checkboxes** - Handle checkbox fields
-- 📄 **Automatic flattening** - Converts form fields to static text for universal compatibility
-- 🔍 **Field discovery** - List all available fields in a PDF
-- 🎯 **Preserve existing values** - Option to keep pre-filled fields
-- 🛠️ **CLI and Python API** - Use from command line or as a library
-- 📋 **Template generation** - Auto-generate JSON templates for forms
+- **Fill text fields** - Set values for any text input field
+- **Check/uncheck checkboxes** - Handle checkbox fields
+- **Automatic flattening** - Converts form fields to static text for universal compatibility
+- **Field discovery** - List all available fields in a PDF
+- **Preserve existing values** - Option to keep pre-filled fields
+- **CLI and Python API** - Use from command line or as a library
+- **Template generation** - Auto-generate JSON templates for forms
 
 ## Installation
 
@@ -296,9 +296,9 @@ with PDFFiller("unknown_form.pdf") as filler:
 PDF form fields need "appearance streams" to display properly. Not all PDF creation tools generate these correctly, causing filled values to be invisible in some viewers.
 
 **Flattening** converts form fields into regular text annotations, ensuring:
-- ✓ Values are visible in all PDF viewers
-- ✓ Forms can't be accidentally edited
-- ✓ Consistent appearance across platforms
+- Values are visible in all PDF viewers
+- Forms can't be accidentally edited
+- Consistent appearance across platforms
 
 We recommend always using `flatten=True` (the default) when saving.
 

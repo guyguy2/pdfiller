@@ -28,7 +28,7 @@ This installs:
 pdfiller --help
 
 # Test Python import
-python -c "from pdfiller import PDFFiller; print('✓ PDFiller installed')"
+python -c "from pdfiller import PDFFiller; print('PDFiller installed successfully')"
 ```
 
 ## Dependencies

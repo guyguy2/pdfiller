@@ -21,3 +21,8 @@ class PDFReadError(PDFFillerError):
 class PDFWriteError(PDFFillerError):
     """Raised when PDF cannot be written"""
     pass
+
+
+class DefaultsValidationError(PDFFillerError):
+    """Raised when defaults data has an invalid structure"""
+    pass

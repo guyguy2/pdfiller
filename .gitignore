@@ -7,3 +7,5 @@ dist/
 build/
 .pytest_cache/
 *.temp.pdf
+scratch/
+examples/*_filled.pdf

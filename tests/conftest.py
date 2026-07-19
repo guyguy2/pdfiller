@@ -169,6 +169,9 @@ def fillable_pdf_with_dates(tmp_path):
     for name, rect in [
         ("first_name", fitz.Rect(100, 100, 300, 120)),
         ("sign_date", fitz.Rect(100, 140, 300, 160)),
+        ("date_signed", fitz.Rect(100, 180, 300, 200)),
+        ("date_of_birth", fitz.Rect(100, 220, 300, 240)),
+        ("expiration_date", fitz.Rect(100, 260, 300, 280)),
     ]:
         widget = fitz.Widget()
         widget.field_type = fitz.PDF_WIDGET_TYPE_TEXT
@@ -176,6 +179,66 @@ def fillable_pdf_with_dates(tmp_path):
         widget.rect = rect
         page.add_widget(widget)
 
+    doc.save(str(path))
+    doc.close()
+    return path
+
+
+@pytest.fixture
+def fillable_pdf_with_dropdown(tmp_path):
+    """Create a fillable PDF with a dropdown/combobox field."""
+    path = tmp_path / "dropdown.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=612, height=792)
+
+    # Add a text field
+    widget = fitz.Widget()
+    widget.field_type = fitz.PDF_WIDGET_TYPE_TEXT
+    widget.field_name = "name"
+    widget.rect = fitz.Rect(100, 100, 300, 120)
+    page.add_widget(widget)
+
+    # Add a combobox/dropdown field
+    widget = fitz.Widget()
+    widget.field_type = fitz.PDF_WIDGET_TYPE_COMBOBOX
+    widget.field_name = "state"
+    widget.rect = fitz.Rect(100, 140, 300, 160)
+    widget.choice_values = ["CA", "NY", "TX"]
+    page.add_widget(widget)
+
+    doc.save(str(path))
+    doc.close()
+    return path
+
+
+@pytest.fixture
+def fillable_pdf_with_listbox(tmp_path):
+    """Create a fillable PDF with a listbox field."""
+    path = tmp_path / "listbox.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=612, height=792)
+
+    # Add a listbox field
+    widget = fitz.Widget()
+    widget.field_type = fitz.PDF_WIDGET_TYPE_LISTBOX
+    widget.field_name = "color"
+    widget.rect = fitz.Rect(100, 100, 300, 180)
+    widget.choice_values = ["Red", "Green", "Blue"]
+    page.add_widget(widget)
+
+    doc.save(str(path))
+    doc.close()
+    return path
+
+
+@pytest.fixture
+def large_pdf(tmp_path):
+    """Create a PDF file that exceeds a small size limit for testing."""
+    path = tmp_path / "large.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=612, height=792)
+    # Add enough text to make the file non-trivial
+    page.insert_text((100, 100), "Hello", fontsize=12)
     doc.save(str(path))
     doc.close()
     return path
