@@ -30,16 +30,6 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
   *Fix:* collect skipped operations during save; expose as return metadata or log; show in `fill --verbose`. Remove the dead page checks.
   *Verify:* verbose fill on a pre-filled field prints a skip line.
 
-- **C10. `load_defaults` hides corruption** (S)
-  Invalid JSON in defaults.json returns `{}` with only `logger.warning` (`memory.py:135`), and the CLI never configures logging - user sees "No defaults stored" with no hint the file is broken.
-  *Fix:* in CLI paths, print a stderr warning naming the file and the parse error.
-  *Verify:* test - corrupt defaults file plus `defaults show` prints warning to stderr.
-
-- **C11. `save_defaults` is not atomic** (S)
-  Crash mid-write corrupts defaults.json, the only copy of the user's stored data (`memory.py:158`).
-  *Fix:* write to a temp file in the same directory, then `os.replace()`.
-  *Verify:* existing save/load tests pass; simulated failure leaves the original intact.
-
 - **C12. `pending_operations` and `--dry-run` omit half the state** (M)
   Neither includes unchecks, text overlays, image overlays, or auto-date targets that `save()` will fill (`core.py:825`, `cli.py:169`).
   *Fix:* extend `pending_operations` with `uncheck`, `text_overlays`, `image_overlays`, `auto_date_fields` (computed); render all in dry-run output.
@@ -49,20 +39,10 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 ## 3. UX and CLI Usability
 
-- **U3. `list` table format hides page and options** (S)
-  Default table omits page number and dropdown/radio options; JSON shows both (`cli.py:35`).
-  *Fix:* add "Page: N" and "Options: [...]" lines to table output.
-  *Verify:* table output for the dropdown fixture shows options.
-
 - **U4. Batch output naming and column mapping** (M)
   Outputs are `stem_filled_001.pdf`; no way to name from row data or map mismatched CSV headers.
   *Fix:* support a reserved `_output` CSV column or `--name-from <column>`; add `--map field=column`; optionally reuse the defaults matcher for fuzzy header matching.
   *Verify:* batch with `--name-from name` produces `stem_guy.pdf` style names; collision appends sequence.
-
-- **U5. Multi-value defaults unusable from CLI** (S)
-  When a default holds a list (two phone numbers), `fill --use-defaults` silently skips the field (`cli.py:117`).
-  *Fix:* print a notice listing skipped multi-value fields and their options so the user knows to pass `-f phone=...`.
-  *Verify:* test - list-valued default produces stderr notice naming field and options.
 
 - **U6. `defaults set` cannot store lists** (S)
   `_set_nested` only stores strings; multi-value defaults require hand-editing JSON.
@@ -150,11 +130,6 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 ## 6. Security and Privacy
 
-- **S1. Defaults file permissions** (S)
-  `~/.pdfiller/defaults.json` typically holds PII (names, addresses, phones).
-  *Fix:* `save_defaults()` creates file with mode 0600 and directory 0700.
-  *Verify:* test asserts permissions after save on POSIX.
-
 - **S2. Values leak into logs and shell history** (S)
   `fill --verbose` and dry-run print full field values - fine interactively, but persisted when scripted or run in CI.
   *Fix:* `--redact` flag printing masked values or lengths.
@@ -189,6 +164,11 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 From this improvement plan (completed 2026-07-20):
 
+- **U3** - `list` table format now shows "Page: N" for every field and "Options: [...]" for dropdown/radio/listbox fields
+- **U5** - `fill --use-defaults` prints a stderr notice naming skipped multi-value fields and their stored options
+- **C10** - CLI configures a stderr logging handler for the `pdfiller` logger, so a corrupt defaults file prints "Warning: Ignoring invalid JSON in defaults file <path>: <error>" instead of being silent
+- **C11** - `save_defaults` writes atomically via temp file + `os.replace`; simulated write failure leaves the original file intact and no temp file behind
+- **S1** - `save_defaults` creates the defaults file with mode 0600 (via `mkstemp`) and a newly created parent directory with mode 0700
 - **P3** - Adopted `ruff` (lint + format) with config in pyproject.toml; codebase reformatted, all findings fixed
 - **C5** - Flatten now renders field values with `insert_textbox` clipped to the widget rect, shrinking font stepwise until the text fits; long and multiline values stay inside the field
 - **U1** - Fill JSON schema extended with `texts`, `boxes`, `images` overlay sections; CLI can fill non-fillable PDFs and place signatures end to end; overlays shown in `--dry-run`/`--verbose`

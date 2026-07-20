@@ -103,6 +103,28 @@ class TestFormatFieldsTable:
         output = _format_fields_table([], "empty.pdf")
         assert "Found 0 fields" in output
 
+    def test_includes_page(self):
+        fields = [{"name": "sig", "type": "Text", "value": "", "page": 2}]
+        output = _format_fields_table(fields, "form.pdf")
+        assert "Page: 2" in output
+
+    def test_includes_options_for_choice_fields(self):
+        fields = [
+            {
+                "name": "state",
+                "type": "ComboBox",
+                "value": "",
+                "page": 0,
+                "options": ["CA", "NY", "TX"],
+            }
+        ]
+        output = _format_fields_table(fields, "form.pdf")
+        assert "Options: [CA, NY, TX]" in output
+
+    def test_omits_options_when_absent(self):
+        output = _format_fields_table(SAMPLE_FIELDS, "form.pdf")
+        assert "Options:" not in output
+
 
 class TestFormatFieldsJson:
     def test_valid_json_output(self):
@@ -557,6 +579,29 @@ class TestFillCommand:
 
         # Should not call fill_field for list matches
         filler.fill_field.assert_not_called()
+
+    def test_use_defaults_multi_value_notice(self, capsys):
+        filler = _make_filler_mock(
+            fields=[
+                {"name": "phone", "type": "Text", "value": "", "page": 0},
+            ],
+        )
+        args = self._base_args(use_defaults=True, dry_run=True, output=None)
+
+        with patch("pdfiller.cli.PDFFiller", return_value=filler), patch(
+            "pdfiller.cli.load_defaults", return_value={"personal": {}}
+        ), patch(
+            "pdfiller.cli.flatten_defaults",
+            return_value={"phone": ["555-1234", "555-5678"]},
+        ), patch(
+            "pdfiller.cli.match_field_to_defaults",
+            side_effect=lambda n, d: d.get(n),
+        ):
+            fill_command(args)
+
+        err = capsys.readouterr().err
+        assert "multiple stored defaults" in err
+        assert "phone: 555-1234, 555-5678" in err
 
     def test_pdffiller_error_exits(self, capsys):
         filler = _make_filler_mock()

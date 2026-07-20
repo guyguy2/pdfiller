@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `list` table format now shows the page number for every field and the options list for dropdown/radio/listbox fields
+- `fill --use-defaults` prints a stderr notice naming fields skipped because the stored default holds multiple values, along with the stored options
+- CLI now routes library warnings to stderr, so a corrupt defaults file is reported (file path and parse error) instead of silently appearing as "No defaults stored"
 - CLI overlay support: the fill JSON schema accepts `texts`, `boxes`, and `images` sections that place content by coordinates, enabling non-fillable PDFs (and signature placement) end to end from the CLI; entries appear in `--dry-run` and `--verbose` output
 - `--strict` flag on `fill` and `batch` passing library strict mode through; missing fields, checkboxes, or invalid choice values fail immediately instead of being silently skipped
 - Guard in `save()` raising `PDFWriteError` when the output path resolves to the input PDF, preventing destruction of the source file
@@ -22,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `save_defaults()` now writes atomically (temp file + `os.replace`), so a crash mid-write can no longer corrupt the defaults file
+- `save_defaults()` creates the defaults file with mode 0600 and a newly created parent directory with mode 0700, since defaults typically hold PII
 - Flatten temp file now gets a unique name via `tempfile.NamedTemporaryFile`, so concurrent fills targeting the same output path no longer clobber each other's temp file
 - Flattening now renders field values with `insert_textbox` clipped to the widget rect, shrinking the font stepwise until the text fits; long values no longer overflow the field and multiline values render on separate lines
 - Auto-date no longer fills non-signing date fields such as `date_of_birth`, `expiration_date`, `effective_date`, and `start_date`/`end_date`; only signature-adjacent dates (e.g. `sign_date`, `date_signed`) default to today

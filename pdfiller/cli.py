@@ -6,6 +6,7 @@ import argparse
 import csv
 import io
 import json
+import logging
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -118,6 +119,10 @@ def _format_fields_table(fields, input_path: str) -> str:
     for field in fields:
         lines.append(f"  - {field['name']}")
         lines.append(f"    Type: {field['type']}")
+        if "page" in field:
+            lines.append(f"    Page: {field['page']}")
+        if field.get("options"):
+            lines.append(f"    Options: [{', '.join(field['options'])}]")
         if field["value"]:
             lines.append(f"    Current value: {field['value']}")
         lines.append("")
@@ -190,12 +195,23 @@ def fill_command(args):
                 defaults_data = flatten_defaults(load_defaults())
                 if defaults_data:
                     pdf_fields = filler.list_fields()
+                    multi_value_skipped = {}
                     for field in pdf_fields:
                         name = field["name"]
                         match = match_field_to_defaults(name, defaults_data)
                         if isinstance(match, str):
                             filler.fill_field(name, match)
-                        # Skip list matches - user should pick manually
+                        elif isinstance(match, list):
+                            # Multiple stored values - user must pick one
+                            multi_value_skipped[name] = match
+                    if multi_value_skipped:
+                        print(
+                            "Notice: skipped fields with multiple stored defaults; "
+                            "pass -f name=value to choose:",
+                            file=sys.stderr,
+                        )
+                        for name, options in multi_value_skipped.items():
+                            print(f"  {name}: {', '.join(options)}", file=sys.stderr)
 
             # Load values from JSON if provided
             data = {}
@@ -544,8 +560,23 @@ def template_command(args):
         sys.exit(1)
 
 
+def _configure_logging() -> None:
+    """Route library warnings (e.g. corrupt defaults file) to stderr.
+
+    Without this, load_defaults() silently swallows JSON parse errors and the
+    user just sees "No defaults stored" with no hint the file is broken.
+    """
+    pkg_logger = logging.getLogger("pdfiller")
+    if not pkg_logger.handlers:
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setFormatter(logging.Formatter("Warning: %(message)s"))
+        pkg_logger.addHandler(handler)
+        pkg_logger.setLevel(logging.WARNING)
+
+
 def main():
     """Main CLI entry point"""
+    _configure_logging()
     parser = argparse.ArgumentParser(
         description="PDFiller - Fill PDF forms from the command line",
         formatter_class=argparse.RawDescriptionHelpFormatter,

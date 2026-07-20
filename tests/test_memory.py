@@ -2,6 +2,10 @@
 Tests for pdfiller.memory module.
 """
 
+import os
+import stat
+from unittest import mock
+
 import pytest
 
 from pdfiller.exceptions import DefaultsValidationError
@@ -232,6 +236,48 @@ class TestLoadSaveRoundTrip:
         save_defaults(data, path)
         assert "updated" not in meta
         assert meta == {"note": "keep"}
+
+
+class TestAtomicSave:
+    def test_failed_write_leaves_original_intact(self, tmp_path):
+        path = tmp_path / "defaults.json"
+        save_defaults({"personal": {"first_name": "Guy"}}, path)
+
+        with mock.patch(
+            "pdfiller.memory.json.dump", side_effect=OSError("disk full")
+        ), pytest.raises(OSError):
+            save_defaults({"personal": {"first_name": "Other"}}, path)
+
+        loaded = load_defaults(path)
+        assert loaded["personal"]["first_name"] == "Guy"
+
+    def test_failed_write_leaves_no_temp_file(self, tmp_path):
+        path = tmp_path / "defaults.json"
+        with mock.patch(
+            "pdfiller.memory.json.dump", side_effect=OSError("disk full")
+        ), pytest.raises(OSError):
+            save_defaults({"a": "1"}, path)
+        assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file permissions")
+class TestSavePermissions:
+    def test_file_mode_0600(self, tmp_path):
+        path = tmp_path / "defaults.json"
+        save_defaults({"a": "1"}, path)
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+    def test_created_dir_mode_0700(self, tmp_path):
+        path = tmp_path / "newdir" / "defaults.json"
+        save_defaults({"a": "1"}, path)
+        assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
+
+    def test_overwrite_resets_file_mode(self, tmp_path):
+        path = tmp_path / "defaults.json"
+        path.write_text("{}")
+        os.chmod(path, 0o644)
+        save_defaults({"a": "1"}, path)
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
 
 
 # -- Tests for schema validation (6.2) --

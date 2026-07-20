@@ -4,10 +4,12 @@ Defaults/memory system for auto-filling common PDF field values across sessions.
 Stores user defaults in ~/.pdfiller/defaults.json (or $PDFILLER_DEFAULTS).
 """
 
+import contextlib
 import json
 import logging
 import os
 import re
+import tempfile
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
@@ -141,12 +143,16 @@ def load_defaults(path: Optional[Path] = None) -> Dict[str, Any]:
 def save_defaults(data: Dict[str, Any], path: Optional[Path] = None) -> Path:
     """Save defaults to JSON file. Creates parent dirs and adds _meta.updated timestamp.
 
+    The write is atomic (temp file + os.replace) so a crash mid-write cannot
+    corrupt an existing defaults file. The file ends up mode 0600 and a newly
+    created parent directory mode 0700, since defaults typically hold PII.
+
     Raises DefaultsValidationError if data has an invalid structure.
     """
     validate_defaults(data)
 
     p = Path(path) if path else _default_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
+    p.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
 
     # Copy before injecting _meta so we don't mutate the caller's dict
     # (or its nested _meta) as a side effect of saving.
@@ -155,8 +161,16 @@ def save_defaults(data: Dict[str, Any], path: Optional[Path] = None) -> Path:
     meta["updated"] = datetime.now().isoformat(timespec="seconds")
     data["_meta"] = meta
 
-    with open(p, "w") as f:
-        json.dump(data, f, indent=2)
+    # mkstemp creates the temp file with mode 0600; os.replace preserves it.
+    fd, tmp_path = tempfile.mkstemp(dir=p.parent, prefix=".defaults-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp_path, p)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_path)
+        raise
     return p
 
 

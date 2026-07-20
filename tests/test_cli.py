@@ -527,6 +527,16 @@ class TestDefaultsShow:
         data = json.loads(result.stdout)
         assert data["personal"]["first_name"] == "Guy"
 
+    def test_show_corrupt_file_warns_on_stderr(self, tmp_path):
+        defaults_file = tmp_path / "defaults.json"
+        defaults_file.write_text("not valid json{{{")
+        env = {"PDFILLER_DEFAULTS": str(defaults_file)}
+        result = run_cli("defaults", "show", env=env)
+        assert result.returncode == 0
+        assert "No defaults stored" in result.stdout
+        assert "Warning:" in result.stderr
+        assert str(defaults_file) in result.stderr
+
 
 class TestDefaultsGet:
     def test_get_nested_value(self, tmp_path):
