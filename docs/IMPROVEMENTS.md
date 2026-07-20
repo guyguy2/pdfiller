@@ -12,36 +12,16 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 | Order | Item | Why first |
 |-------|------|-----------|
-| 1 | P3 ruff | Locks in quality before further work |
-| 2 | C5 flatten textbox rendering | Most visible output-quality win |
-| 3 | U1 CLI overlay support | Closes biggest workflow gap |
-| 4 | Everything else | Opportunistic |
+| 1 | Everything else | Opportunistic |
 
 ---
 
 ## 2. Correctness and Safety
 
-### High priority
-
-- **C4. Temp file collision in `_flatten_with_overlays`** (S)
-  Temp path is derived deterministically from the output path (`.temp.pdf` suffix, `core.py:646`). Two concurrent fills targeting the same output (batch mode, parallel invocations) clobber each other's temp file.
-  *Fix:* `tempfile.NamedTemporaryFile(dir=output_dir, suffix=".pdf", delete=False)`.
-  *Verify:* temp name unique per call; existing flatten tests still pass.
-
-- **C5. Flatten overlay ignores multiline and overflowing values** (M)
-  The flatten pass (`core.py:683`) renders every field value with a single `insert_text` call at a fixed offset. Long values overflow the field rect; multiline text field values render as one line.
-  *Fix:* use `insert_textbox` clipped to the widget rect; shrink font size stepwise until the text fits.
-  *Verify:* test with a long value and a multiline value - rendered text stays inside the widget rect (assert via `get_text` positions).
-
 ### Medium priority
 
-- **C7. Push buttons treated as checkboxes again** (S)
-  `_CHECKBOX_FIELD_TYPES = ("CheckBox", "Button")` (`cli.py:18`) makes `template` and `export` classify push buttons (PyMuPDF type string "Button") as checkboxes. Original audit item 1.11 fixed exactly this; a unit test (`test_cli_unit.py:628`) now locks in the regressed behavior.
-  *Fix:* decide intentionally. Push buttons are actions, not state - drop "Button" and update the test, or document why it is included.
-  *Verify:* `template` on a PDF with a push button excludes it from `checkboxes`.
-
 - **C8. Library and CLI disagree on preserve-existing default** (M)
-  Library defaults to `_preserve_existing = True` (fill only empty fields, `core.py:113`); CLI passes `args.preserve_existing`, default False (overwrite). A library user calling `fill_field()` on a pre-filled field is silently ignored - surprising for an API named "fill".
+  Library defaults to `_preserve_existing = True` (fill only empty fields, `core.py:115`); CLI passes `args.preserve_existing`, default False (overwrite). A library user calling `fill_field()` on a pre-filled field is silently ignored - surprising for an API named "fill".
   *Fix:* flip the library default to False (opt in via `preserve_existing_fields(True)`); document as breaking change in CHANGELOG; bump minor version. Alternative: keep and document prominently in README + docstring.
   *Verify:* tests updated for chosen default; README and USAGE describe it.
 
@@ -51,42 +31,23 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
   *Verify:* verbose fill on a pre-filled field prints a skip line.
 
 - **C10. `load_defaults` hides corruption** (S)
-  Invalid JSON in defaults.json returns `{}` with only `logger.warning` (`memory.py:140`), and the CLI never configures logging - user sees "No defaults stored" with no hint the file is broken.
+  Invalid JSON in defaults.json returns `{}` with only `logger.warning` (`memory.py:135`), and the CLI never configures logging - user sees "No defaults stored" with no hint the file is broken.
   *Fix:* in CLI paths, print a stderr warning naming the file and the parse error.
   *Verify:* test - corrupt defaults file plus `defaults show` prints warning to stderr.
 
 - **C11. `save_defaults` is not atomic** (S)
-  Crash mid-write corrupts defaults.json, the only copy of the user's stored data (`memory.py:163`).
+  Crash mid-write corrupts defaults.json, the only copy of the user's stored data (`memory.py:158`).
   *Fix:* write to a temp file in the same directory, then `os.replace()`.
   *Verify:* existing save/load tests pass; simulated failure leaves the original intact.
 
 - **C12. `pending_operations` and `--dry-run` omit half the state** (M)
-  Neither includes unchecks, text overlays, image overlays, or auto-date targets that `save()` will fill (`core.py:788`, `cli.py:165`).
+  Neither includes unchecks, text overlays, image overlays, or auto-date targets that `save()` will fill (`core.py:825`, `cli.py:169`).
   *Fix:* extend `pending_operations` with `uncheck`, `text_overlays`, `image_overlays`, `auto_date_fields` (computed); render all in dry-run output.
   *Verify:* dry-run on a PDF with an empty `sign_date` lists it as auto-date.
 
 ---
 
 ## 3. UX and CLI Usability
-
-- **U1. CLI cannot fill non-fillable PDFs** (M)
-  Library supports `insert_text`, `insert_text_box`, `insert_image`; `inspect` finds coordinates; but no CLI verb acts on them - the non-fillable workflow dead-ends at the CLI.
-  *Fix:* extend the fill JSON schema with overlay sections:
-  ```json
-  {
-    "fields": {"name": "Guy"},
-    "checkboxes": ["agree"],
-    "texts": [{"text": "Guy Smith", "x": 200, "y": 150, "page": 0}],
-    "boxes": [{"text": "123 Main St", "x0": 100, "y0": 200, "x1": 400, "y1": 260, "page": 0}],
-    "images": [{"path": "sig.png", "x0": 100, "y0": 500, "x1": 300, "y1": 550, "page": 1}]
-  }
-  ```
-  *Verify:* `fill -j` with only overlay sections produces correct output on a non-fillable fixture; covers signature placement end to end.
-
-- **U2. `--strict` not exposed in CLI** (S)
-  Library strict mode has no flag on `fill` or `batch`; `--validate` only warns.
-  *Fix:* add `--strict` (passes `strict=True`); make `--validate` exit non-zero on missing fields, or fold both into one flag.
-  *Verify:* `fill --strict -f nosuchfield=x` exits 1 with a clear message.
 
 - **U3. `list` table format hides page and options** (S)
   Default table omits page number and dropdown/radio options; JSON shows both (`cli.py:35`).
@@ -99,7 +60,7 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
   *Verify:* batch with `--name-from name` produces `stem_guy.pdf` style names; collision appends sequence.
 
 - **U5. Multi-value defaults unusable from CLI** (S)
-  When a default holds a list (two phone numbers), `fill --use-defaults` silently skips the field (`cli.py:116`).
+  When a default holds a list (two phone numbers), `fill --use-defaults` silently skips the field (`cli.py:117`).
   *Fix:* print a notice listing skipped multi-value fields and their options so the user knows to pass `-f phone=...`.
   *Verify:* test - list-valued default produces stderr notice naming field and options.
 
@@ -109,12 +70,12 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
   *Verify:* `defaults add personal.phone 555-1234` twice yields a two-element list in `defaults show`.
 
 - **U7. Date format hardcoded US style** (S)
-  `_format_today_date()` always emits M/D/YYYY (`core.py:353`).
+  `_format_today_date()` always emits M/D/YYYY (`core.py:366`).
   *Fix:* `date_format` strftime parameter on `PDFFiller`, `--date-format` CLI flag; consider `_meta.date_format` defaults key for persistence.
   *Verify:* `--date-format %Y-%m-%d` produces ISO dates in auto-filled fields.
 
 - **U8. Encrypted PDFs rejected outright** (S)
-  Many "protected" PDFs open with an empty user password; users may legitimately have the password (`core.py:104`).
+  Many "protected" PDFs open with an empty user password; users may legitimately have the password (`core.py:106`).
   *Fix:* try `doc.authenticate("")` before failing; add optional `password` parameter and `--password` flag.
   *Verify:* fixture encrypted with empty user password opens; wrong password still raises `PDFReadError`.
 
@@ -128,7 +89,7 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 ## 4. Architecture and Extensibility
 
 - **A1. `core.py` heading toward god class** (M)
-  `PDFFiller` handles form filling, overlay drawing, flattening, size policy, and date heuristics (801 lines).
+  `PDFFiller` handles form filling, overlay drawing, flattening, size policy, and date heuristics (838 lines).
   *Fix:* before adding features, split `_flatten_with_overlays` and helpers into `flatten.py`, and overlay queue/apply logic into `overlays.py`, keeping `PDFFiller` as facade.
   *Verify:* no public API change; tests pass unmodified.
 
@@ -138,17 +99,17 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
   *Verify:* `clear_matchers(); reset_matchers()` restores exact/normalized behavior; autouse fixture isolates tests.
 
 - **A3. Overlay dicts are stringly typed** (S)
-  `_text_overlays` entries are raw dicts with a `type` discriminator (`core.py:483`).
+  `_text_overlays` entries are raw dicts with a `type` discriminator (`core.py:502`).
   *Fix:* small `@dataclass TextOverlay` / `BoxOverlay` / `ImageOverlay`; makes `pending_operations` richer for free (pairs with C12).
   *Verify:* type checker clean; behavior unchanged.
 
 - **A4. CLI dispatch boilerplate** (S)
-  `if args.command == ...` chain duplicates the subparser list (`cli.py:533`).
+  `if args.command == ...` chain duplicates the subparser list (`cli.py:572`).
   *Fix:* `set_defaults(func=...)` per subparser; call `args.func(args)`.
   *Verify:* all CLI tests pass.
 
 - **A5. `fill()` non-fillable spec only supports point text** (S)
-  Coordinate-dict schema accepts `text/x/y` but not the box form or images, so the high-level API covers less than the low-level one (`core.py:226`).
+  Coordinate-dict schema accepts `text/x/y` but not the box form or images, so the high-level API covers less than the low-level one (`core.py:228`).
   *Fix:* extend spec with `"box"` and `"image"` entry types; align with the U1 JSON schema so library and CLI share one format.
   *Verify:* `fill()` places a wrapped text box and an image on a non-fillable fixture.
 
@@ -160,10 +121,6 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 ---
 
 ## 5. Packaging, Tooling, and Tests
-
-- **P3. No lint/format config** (S)
-  *Fix:* adopt `ruff` (lint + format), config in pyproject.toml. Adoption cost is low now; it will not be later.
-  *Verify:* `ruff check .` clean.
 
 - **P4. No `py.typed` marker** (S)
   Type hints exist throughout but type checkers ignore installed packages without `py.typed`.
@@ -229,6 +186,15 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 ---
 
 ## Appendix: Completed Items
+
+From this improvement plan (completed 2026-07-20):
+
+- **P3** - Adopted `ruff` (lint + format) with config in pyproject.toml; codebase reformatted, all findings fixed
+- **C5** - Flatten now renders field values with `insert_textbox` clipped to the widget rect, shrinking font stepwise until the text fits; long and multiline values stay inside the field
+- **U1** - Fill JSON schema extended with `texts`, `boxes`, `images` overlay sections; CLI can fill non-fillable PDFs and place signatures end to end; overlays shown in `--dry-run`/`--verbose`
+- **C4** - Flatten temp file now unique per call via `tempfile.NamedTemporaryFile`; concurrent fills to the same output path no longer collide
+- **C7** - Push buttons excluded from `template` and `export` output entirely (they are actions, not state); regressed test updated
+- **U2** - `--strict` flag on `fill` and `batch` (passes library strict mode); `--validate` now exits non-zero without saving when fields are missing
 
 From this improvement plan (completed 2026-07-19):
 

@@ -205,6 +205,38 @@ class TestFillCommand:
         assert result.returncode == 0
         assert "agree_terms [check]" in result.stdout
 
+    def test_strict_missing_field_exits(self, fillable_pdf, tmp_path):
+        out = tmp_path / "filled.pdf"
+        result = run_cli(
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-o",
+            str(out),
+            "-f",
+            "nosuchfield=x",
+            "--strict",
+        )
+        assert result.returncode == 1
+        assert "nosuchfield" in result.stderr
+        assert not out.exists()
+
+    def test_validate_missing_field_exits(self, fillable_pdf, tmp_path):
+        out = tmp_path / "filled.pdf"
+        result = run_cli(
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-o",
+            str(out),
+            "-f",
+            "nosuchfield=x",
+            "--validate",
+        )
+        assert result.returncode == 1
+        assert "Fields not found" in result.stderr
+        assert not out.exists()
+
     def test_verbose_shows_auto_date_note(self, fillable_pdf, tmp_path):
         out = tmp_path / "filled.pdf"
         result = run_cli(
@@ -219,6 +251,124 @@ class TestFillCommand:
         )
         assert result.returncode == 0
         assert "Auto-fill dates: enabled" in result.stdout
+
+
+class TestFillOverlays:
+    """Overlay sections (texts, boxes, images) in the fill JSON schema (U1)."""
+
+    def _write_spec(self, tmp_path, spec):
+        json_file = tmp_path / "overlays.json"
+        json_file.write_text(json.dumps(spec))
+        return json_file
+
+    def test_overlays_on_non_fillable_pdf(self, non_fillable_pdf, tiny_png, tmp_path):
+        import fitz
+
+        out = tmp_path / "filled.pdf"
+        spec = {
+            "texts": [{"text": "Guy Smith", "x": 200, "y": 110, "page": 0}],
+            "boxes": [
+                {
+                    "text": "123 Main St, Anytown ST 12345",
+                    "x0": 100,
+                    "y0": 200,
+                    "x1": 400,
+                    "y1": 260,
+                }
+            ],
+            "images": [{"path": str(tiny_png), "x0": 100, "y0": 500, "x1": 300, "y1": 550}],
+        }
+        result = run_cli(
+            "fill",
+            "-i",
+            str(non_fillable_pdf),
+            "-j",
+            str(self._write_spec(tmp_path, spec)),
+            "-o",
+            str(out),
+        )
+        assert result.returncode == 0, result.stderr
+        assert "3 overlays" in result.stdout
+
+        doc = fitz.open(str(out))
+        text = doc[0].get_text()
+        images = doc[0].get_images()
+        doc.close()
+        assert "Guy Smith" in text
+        assert "123 Main St" in text
+        assert len(images) == 1
+
+    def test_dry_run_lists_overlays(self, non_fillable_pdf, tmp_path):
+        spec = {"texts": [{"text": "Guy", "x": 200, "y": 150}]}
+        result = run_cli(
+            "fill",
+            "-i",
+            str(non_fillable_pdf),
+            "-j",
+            str(self._write_spec(tmp_path, spec)),
+            "--dry-run",
+        )
+        assert result.returncode == 0
+        assert 'text "Guy" at (200, 150) on page 0' in result.stdout
+        assert "(no fields to fill)" not in result.stdout
+
+    def test_missing_overlay_keys_exits(self, non_fillable_pdf, tmp_path):
+        spec = {"texts": [{"text": "Guy", "x": 200}]}
+        out = tmp_path / "filled.pdf"
+        result = run_cli(
+            "fill",
+            "-i",
+            str(non_fillable_pdf),
+            "-j",
+            str(self._write_spec(tmp_path, spec)),
+            "-o",
+            str(out),
+        )
+        assert result.returncode == 1
+        assert "texts[0]" in result.stderr
+        assert "y" in result.stderr
+
+    def test_overlay_page_out_of_range_exits(self, non_fillable_pdf, tmp_path):
+        spec = {"texts": [{"text": "Guy", "x": 200, "y": 150, "page": 5}]}
+        out = tmp_path / "filled.pdf"
+        result = run_cli(
+            "fill",
+            "-i",
+            str(non_fillable_pdf),
+            "-j",
+            str(self._write_spec(tmp_path, spec)),
+            "-o",
+            str(out),
+        )
+        assert result.returncode == 1
+        assert "out of range" in result.stderr
+
+    def test_overlays_combine_with_fields(self, fillable_pdf, tmp_path):
+        import fitz
+
+        out = tmp_path / "filled.pdf"
+        spec = {
+            "fields": {"first_name": "Alice"},
+            "texts": [{"text": "Extra note", "x": 100, "y": 700}],
+        }
+        result = run_cli(
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-j",
+            str(self._write_spec(tmp_path, spec)),
+            "-o",
+            str(out),
+        )
+        assert result.returncode == 0, result.stderr
+        assert "1 fields" in result.stdout
+        assert "1 overlays" in result.stdout
+
+        doc = fitz.open(str(out))
+        text = doc[0].get_text()
+        doc.close()
+        assert "Alice" in text
+        assert "Extra note" in text
 
 
 class TestTemplateCommand:
@@ -618,6 +768,23 @@ class TestBatchCommand:
         assert "Filled 2 PDFs from data.csv" in result.stdout
         assert (out_dir / "fillable_filled_001.pdf").exists()
         assert (out_dir / "fillable_filled_002.pdf").exists()
+
+    def test_batch_strict_unknown_column_fails_rows(self, fillable_pdf, tmp_path):
+        csv_file = tmp_path / "data.csv"
+        csv_file.write_text("first_name,bogus_column\nAlice,x\n")
+        out_dir = tmp_path / "filled"
+        result = run_cli(
+            "batch",
+            "-i",
+            str(fillable_pdf),
+            "--csv",
+            str(csv_file),
+            "--output-dir",
+            str(out_dir),
+            "--strict",
+        )
+        assert result.returncode == 1
+        assert "bogus_column" in result.stderr
 
     def test_batch_creates_output_dir(self, fillable_pdf, tmp_path):
         csv_file = tmp_path / "data.csv"

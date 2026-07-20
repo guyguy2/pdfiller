@@ -5,6 +5,7 @@ Core functionality for PDF form filling
 import logging
 import os
 import re
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -656,6 +657,27 @@ class PDFFiller:
                     color=overlay["color"],
                 )
 
+    @staticmethod
+    def _insert_fitted_textbox(page, rect, text: str, font_size: float) -> None:
+        """Render text clipped to rect, shrinking the font stepwise until it fits.
+
+        insert_textbox writes nothing and returns a negative value when the
+        text does not fit, so each attempt is safe to retry at a smaller size.
+        """
+        min_font_size = 2.0
+        while font_size >= min_font_size:
+            leftover = page.insert_textbox(
+                rect, text, fontsize=font_size, color=(0, 0, 0), fontname="helv"
+            )
+            if leftover >= 0:
+                return
+            font_size -= 0.5
+        logger.warning(
+            "Field value does not fit its widget rect even at %.1fpt; value not rendered: %.40r",
+            min_font_size,
+            text,
+        )
+
     def _flatten_with_overlays(self, output_path: Union[str, Path]):
         """
         Create a flattened PDF with text overlays
@@ -668,8 +690,13 @@ class PDFFiller:
         self._apply_text_overlays()
         self._apply_image_overlays()
 
-        # Save temporary version
-        temp_path = Path(output_path).with_suffix(".temp.pdf")
+        # Save temporary version; unique name so concurrent fills targeting
+        # the same output path cannot clobber each other's temp file
+        output_path = Path(output_path)
+        with tempfile.NamedTemporaryFile(
+            dir=output_path.parent, prefix=output_path.stem + ".", suffix=".temp.pdf", delete=False
+        ) as tf:
+            temp_path = Path(tf.name)
         self.doc.save(str(temp_path), garbage=4, deflate=True)
         self.doc.close()
 
@@ -689,26 +716,20 @@ class PDFFiller:
 
                     if value and value not in ["Off", ""]:
                         rect = widget.rect
+                        height = rect.height
+                        font_size = min(height * 0.7, 10)  # Max 10pt
 
                         # Checkboxes report their "on" state as any non-Off
                         # export value (e.g. "On", "Yes", True); render an X
                         # mark for all of them rather than the raw value.
                         if widget.field_type == fitz.PDF_WIDGET_TYPE_CHECKBOX:
-                            value = "X"
+                            x = rect.x0 + 2
+                            y = rect.y0 + (height * 0.75)
+                            page.insert_text(
+                                (x, y), "X", fontsize=font_size, color=(0, 0, 0), fontname="helv"
+                            )
                         else:
-                            value = str(value)
-
-                        # Calculate font size based on rectangle height
-                        height = rect.height
-                        font_size = min(height * 0.7, 10)  # Max 10pt
-
-                        # Position text
-                        x = rect.x0 + 2
-                        y = rect.y0 + (height * 0.75)
-
-                        page.insert_text(
-                            (x, y), value, fontsize=font_size, color=(0, 0, 0), fontname="helv"
-                        )
+                            self._insert_fitted_textbox(page, rect, str(value), font_size)
 
             # Remove widget annotations so only the text overlays remain
             for page_num in range(self.page_count):

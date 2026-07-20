@@ -12,9 +12,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from pdfiller.cli import (
+    _describe_overlays,
     _format_fields_csv,
     _format_fields_json,
     _format_fields_table,
+    _queue_overlays,
     defaults_command,
     export_command,
     fill_command,
@@ -234,6 +236,79 @@ class TestListFieldsCommand:
 
 
 # ---------------------------------------------------------------------------
+# Overlay helpers
+# ---------------------------------------------------------------------------
+
+
+class TestQueueOverlays:
+    def test_queues_all_sections(self):
+        filler = _make_filler_mock()
+        data = {
+            "texts": [{"text": "Guy", "x": 200, "y": 150, "page": 1, "font_size": 12}],
+            "boxes": [{"text": "Addr", "x0": 100, "y0": 200, "x1": 400, "y1": 260}],
+            "images": [{"path": "sig.png", "x0": 100, "y0": 500, "x1": 300, "y1": 550}],
+        }
+
+        count = _queue_overlays(filler, data)
+
+        assert count == 3
+        filler.insert_text.assert_called_once_with("Guy", 200, 150, page_num=1, font_size=12)
+        filler.insert_text_box.assert_called_once_with("Addr", 100, 200, 400, 260, page_num=0)
+        filler.insert_image.assert_called_once_with("sig.png", 100, 500, 300, 550, page_num=0)
+
+    def test_empty_data_queues_nothing(self):
+        filler = _make_filler_mock()
+        assert _queue_overlays(filler, {}) == 0
+        filler.insert_text.assert_not_called()
+        filler.insert_text_box.assert_not_called()
+        filler.insert_image.assert_not_called()
+
+    def test_missing_keys_exits(self, capsys):
+        filler = _make_filler_mock()
+        data = {"images": [{"path": "sig.png", "x0": 100}]}
+
+        with pytest.raises(SystemExit):
+            _queue_overlays(filler, data)
+
+        err = capsys.readouterr().err
+        assert "images[0]" in err
+        assert "y0" in err
+
+    def test_validates_before_queueing(self):
+        """A bad entry in a later section must not leave earlier ones queued."""
+        filler = _make_filler_mock()
+        data = {
+            "texts": [{"text": "Guy", "x": 200, "y": 150}],
+            "images": [{"path": "sig.png"}],
+        }
+
+        with pytest.raises(SystemExit):
+            _queue_overlays(filler, data)
+
+        filler.insert_text.assert_not_called()
+
+
+class TestDescribeOverlays:
+    def test_describes_each_section(self):
+        data = {
+            "texts": [{"text": "Guy", "x": 200, "y": 150}],
+            "boxes": [{"text": "Addr", "x0": 100, "y0": 200, "x1": 400, "y1": 260, "page": 1}],
+            "images": [{"path": "sig.png", "x0": 100, "y0": 500, "x1": 300, "y1": 550}],
+        }
+
+        lines = _describe_overlays(data)
+
+        assert lines == [
+            'text "Guy" at (200, 150) on page 0',
+            'text box "Addr" in (100, 200, 400, 260) on page 1',
+            "image sig.png in (100, 500, 300, 550) on page 0",
+        ]
+
+    def test_empty_data(self):
+        assert _describe_overlays({}) == []
+
+
+# ---------------------------------------------------------------------------
 # fill_command
 # ---------------------------------------------------------------------------
 
@@ -254,6 +329,7 @@ class TestFillCommand:
             verbose=False,
             no_auto_dates=False,
             use_defaults=False,
+            strict=False,
         )
         defaults.update(overrides)
         return Namespace(**defaults)
@@ -401,7 +477,7 @@ class TestFillCommand:
 
         filler.preserve_existing_fields.assert_called_once_with(True)
 
-    def test_validate_warns_about_missing_fields(self, capsys):
+    def test_validate_exits_on_missing_fields(self, capsys):
         filler = _make_filler_mock()
         filler.validate_fields.return_value = {
             "first_name": True,
@@ -412,12 +488,33 @@ class TestFillCommand:
             validate=True,
         )
 
-        with patch("pdfiller.cli.PDFFiller", return_value=filler):
+        with patch("pdfiller.cli.PDFFiller", return_value=filler), pytest.raises(SystemExit) as e:
             fill_command(args)
 
+        assert e.value.code == 1
         err = capsys.readouterr().err
         assert "Fields not found" in err
         assert "nonexistent" in err
+        filler.save.assert_not_called()
+
+    def test_validate_passes_when_fields_exist(self, capsys):
+        filler = _make_filler_mock()
+        filler.validate_fields.return_value = {"first_name": True}
+        args = self._base_args(field=["first_name=Alice"], validate=True)
+
+        with patch("pdfiller.cli.PDFFiller", return_value=filler):
+            fill_command(args)
+
+        filler.save.assert_called_once()
+
+    def test_strict_passed_to_filler(self):
+        filler = _make_filler_mock()
+        args = self._base_args(field=["first_name=Alice"], strict=True)
+
+        with patch("pdfiller.cli.PDFFiller", return_value=filler) as mock_cls:
+            fill_command(args)
+
+        assert mock_cls.call_args.kwargs["strict"] is True
 
     def test_use_defaults(self, capsys):
         filler = _make_filler_mock(
@@ -640,10 +737,11 @@ class TestExportCommand:
         assert data["fields"] == {}
         assert data["checkboxes"] == []
 
-    def test_export_button_type_as_checkbox(self, capsys):
-        """Button-type fields with truthy value should be treated as checkboxes."""
+    def test_export_excludes_push_buttons(self, capsys):
+        """Push buttons are actions, not state - excluded from export (C7)."""
         fields = [
             {"name": "submit_btn", "type": "Button", "value": "Yes", "page": 0},
+            {"name": "agree", "type": "CheckBox", "value": "On", "page": 0},
         ]
         filler = _make_filler_mock(fields=fields)
         args = Namespace(input="form.pdf", output=None)
@@ -652,7 +750,9 @@ class TestExportCommand:
             export_command(args)
 
         data = json.loads(capsys.readouterr().out)
-        assert "submit_btn" in data["checkboxes"]
+        assert "submit_btn" not in data["checkboxes"]
+        assert "submit_btn" not in data["fields"]
+        assert "agree" in data["checkboxes"]
 
     def test_pdffiller_error_exits(self, capsys):
         filler = _make_filler_mock()
@@ -685,6 +785,20 @@ class TestTemplateCommand:
         assert "agree_terms" in data["checkboxes"]
         # Checkboxes should not appear in fields
         assert "agree_terms" not in data["fields"]
+
+    def test_excludes_push_buttons(self, tmp_path, capsys):
+        """Push buttons are actions, not state - excluded from template (C7)."""
+        fields = SAMPLE_FIELDS + [{"name": "submit_btn", "type": "Button", "value": "", "page": 0}]
+        filler = _make_filler_mock(fields=fields)
+        out_file = str(tmp_path / "template.json")
+        args = Namespace(input="form.pdf", output=out_file)
+
+        with patch("pdfiller.cli.PDFFiller", return_value=filler):
+            template_command(args)
+
+        data = json.loads((tmp_path / "template.json").read_text())
+        assert "submit_btn" not in data["checkboxes"]
+        assert "submit_btn" not in data["fields"]
 
     def test_prints_usage_hint(self, tmp_path, capsys):
         filler = _make_filler_mock()

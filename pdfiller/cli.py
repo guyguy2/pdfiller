@@ -14,8 +14,18 @@ from .core import PDFFiller
 from .exceptions import PDFFillerError
 from .memory import flatten_defaults, load_defaults, match_field_to_defaults, save_defaults
 
-# Field types treated as checkboxes (toggled, not assigned a text value)
-_CHECKBOX_FIELD_TYPES = ("CheckBox", "Button")
+# Field types treated as checkboxes (toggled, not assigned a text value).
+# Push buttons (PyMuPDF type "Button") are actions, not state, and are
+# excluded from both template and export output.
+_CHECKBOX_FIELD_TYPES = ("CheckBox",)
+_PUSH_BUTTON_FIELD_TYPES = ("Button",)
+
+# Required keys per overlay section in the fill JSON schema
+_OVERLAY_REQUIRED_KEYS = {
+    "texts": ("text", "x", "y"),
+    "boxes": ("text", "x0", "y0", "x1", "y1"),
+    "images": ("path", "x0", "y0", "x1", "y1"),
+}
 
 
 def load_values_from_json(json_path: Path) -> Dict[str, Any]:
@@ -30,6 +40,76 @@ def load_values_from_json(json_path: Path) -> Dict[str, Any]:
         print(f"Error: Cannot read {json_path}: {e}", file=sys.stderr)
         sys.exit(1)
     return data
+
+
+def _queue_overlays(filler: PDFFiller, data: Dict[str, Any]) -> int:
+    """Queue text/box/image overlays from the fill JSON spec.
+
+    Returns the number of overlays queued. Exits with an error message if an
+    entry is missing required keys.
+    """
+    for section, required in _OVERLAY_REQUIRED_KEYS.items():
+        for i, entry in enumerate(data.get(section, [])):
+            missing = [k for k in required if k not in entry]
+            if missing:
+                print(
+                    f"Error: {section}[{i}] is missing required keys: {', '.join(missing)}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+
+    count = 0
+    for entry in data.get("texts", []):
+        kwargs = {"font_size": entry["font_size"]} if "font_size" in entry else {}
+        filler.insert_text(
+            entry["text"], entry["x"], entry["y"], page_num=entry.get("page", 0), **kwargs
+        )
+        count += 1
+    for entry in data.get("boxes", []):
+        kwargs = {"font_size": entry["font_size"]} if "font_size" in entry else {}
+        filler.insert_text_box(
+            entry["text"],
+            entry["x0"],
+            entry["y0"],
+            entry["x1"],
+            entry["y1"],
+            page_num=entry.get("page", 0),
+            **kwargs,
+        )
+        count += 1
+    for entry in data.get("images", []):
+        filler.insert_image(
+            entry["path"],
+            entry["x0"],
+            entry["y0"],
+            entry["x1"],
+            entry["y1"],
+            page_num=entry.get("page", 0),
+        )
+        count += 1
+    return count
+
+
+def _describe_overlays(data: Dict[str, Any]) -> list:
+    """Human-readable one-line descriptions of overlay entries for dry-run/verbose."""
+    lines = []
+    for entry in data.get("texts", []):
+        lines.append(
+            f'text "{entry["text"]}" at ({entry["x"]}, {entry["y"]}) on page {entry.get("page", 0)}'
+        )
+    for entry in data.get("boxes", []):
+        lines.append(
+            f'text box "{entry["text"]}" in '
+            f"({entry['x0']}, {entry['y0']}, {entry['x1']}, {entry['y1']}) "
+            f"on page {entry.get('page', 0)}"
+        )
+    for entry in data.get("images", []):
+        lines.append(
+            f"image {entry['path']} in "
+            f"({entry['x0']}, {entry['y0']}, {entry['x1']}, {entry['y1']}) "
+            f"on page {entry.get('page', 0)}"
+        )
+    return lines
 
 
 def _format_fields_table(fields, input_path: str) -> str:
@@ -100,7 +180,8 @@ def fill_command(args):
         sys.exit(1)
     try:
         auto_dates = not getattr(args, "no_auto_dates", False)
-        with PDFFiller(args.input, auto_fill_dates=auto_dates) as filler:
+        strict = getattr(args, "strict", False)
+        with PDFFiller(args.input, auto_fill_dates=auto_dates, strict=strict) as filler:
             # Set preserve mode
             filler.preserve_existing_fields(args.preserve_existing)
 
@@ -117,6 +198,8 @@ def fill_command(args):
                         # Skip list matches - user should pick manually
 
             # Load values from JSON if provided
+            data = {}
+            overlay_count = 0
             if args.values_json:
                 data = load_values_from_json(args.values_json)
 
@@ -130,6 +213,10 @@ def fill_command(args):
                 # Check checkboxes
                 for checkbox in checkboxes:
                     filler.check_box(checkbox)
+
+                # Queue coordinate overlays (texts, boxes, images) for
+                # non-fillable PDFs or additions on top of form fields
+                overlay_count = _queue_overlays(filler, data)
 
             # Override with command-line field arguments
             if args.field:
@@ -158,7 +245,8 @@ def fill_command(args):
                     results = filler.validate_fields(all_fields)
                     invalid = [name for name, exists in results.items() if not exists]
                     if invalid:
-                        print(f"Warning: Fields not found: {', '.join(invalid)}", file=sys.stderr)
+                        print(f"Error: Fields not found: {', '.join(invalid)}", file=sys.stderr)
+                        sys.exit(1)
 
             # Collect summary info via public API
             ops = filler.pending_operations
@@ -174,7 +262,10 @@ def fill_command(args):
                 if ops["check"]:
                     for name in ops["check"]:
                         print(f"  {name} = [checked]")
-                if not ops["fields"] and not ops["check"]:
+                overlay_lines = _describe_overlays(data)
+                for line in overlay_lines:
+                    print(f"  {line}")
+                if not ops["fields"] and not ops["check"] and not overlay_lines:
                     print("  (no fields to fill)")
                 return
 
@@ -193,6 +284,12 @@ def fill_command(args):
                     for name in ops["check"]:
                         print(f"    {name} [check]")
 
+                overlay_lines = _describe_overlays(data)
+                if overlay_lines:
+                    print("  Overlays:")
+                    for line in overlay_lines:
+                        print(f"    {line}")
+
                 if filler.auto_fill_dates:
                     print("  Auto-fill dates: enabled (empty date fields will use today's date)")
 
@@ -210,7 +307,10 @@ def fill_command(args):
 
             # Save the filled PDF
             output_path = filler.save(args.output, flatten=args.flatten)
-            print(f"Done: {output_path} ({filled_count} fields, {checked_count} checkboxes)")
+            summary = f"{filled_count} fields, {checked_count} checkboxes"
+            if overlay_count:
+                summary += f", {overlay_count} overlays"
+            print(f"Done: {output_path} ({summary})")
 
     except PDFFillerError as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -254,6 +354,8 @@ def export_command(args):
                 name = field["name"]
                 value = field["value"]
                 field_type = field["type"]
+                if field_type in _PUSH_BUTTON_FIELD_TYPES:
+                    continue
                 if field_type in _CHECKBOX_FIELD_TYPES:
                     if value and value not in ("Off", ""):
                         data["checkboxes"].append(name)
@@ -381,7 +483,11 @@ def batch_command(args):
         seq = f"{i:03d}"
         output_file = output_dir / f"{stem}_filled_{seq}.pdf"
         try:
-            with PDFFiller(args.input, auto_fill_dates=not args.no_auto_dates) as filler:
+            with PDFFiller(
+                args.input,
+                auto_fill_dates=not args.no_auto_dates,
+                strict=getattr(args, "strict", False),
+            ) as filler:
                 # Every CSV column is applied as a field value by name. Checkbox
                 # columns are set through the same path, so they only toggle when
                 # the cell holds the checkbox export value (e.g. "On"/"Off"), not
@@ -416,6 +522,8 @@ def template_command(args):
                 field_name = field["name"]
                 field_type = field["type"]
 
+                if field_type in _PUSH_BUTTON_FIELD_TYPES:
+                    continue
                 if field_type in _CHECKBOX_FIELD_TYPES:
                     template["checkboxes"].append(field_name)
                 else:
@@ -449,6 +557,11 @@ Examples:
   # Fill fields from JSON
   pdfiller fill -i form.pdf -j values.json -o filled.pdf
 
+  # Fill a non-fillable PDF with coordinate overlays (see 'inspect' for coordinates)
+  # values.json: {"texts": [{"text": "Guy", "x": 200, "y": 150, "page": 0}],
+  #               "images": [{"path": "sig.png", "x0": 100, "y0": 500, "x1": 300, "y1": 550}]}
+  pdfiller fill -i scan.pdf -j values.json -o filled.pdf
+
   # Fill specific fields
   pdfiller fill -i form.pdf -f "name=John Doe" -f "age=30" -c agree_checkbox -o filled.pdf
 
@@ -477,7 +590,15 @@ Examples:
     fill_parser = subparsers.add_parser("fill", help="Fill PDF form fields")
     fill_parser.add_argument("-i", "--input", required=True, help="Input PDF file")
     fill_parser.add_argument("-o", "--output", help="Output PDF file (required unless --dry-run)")
-    fill_parser.add_argument("-j", "--values-json", help="JSON file with field values")
+    fill_parser.add_argument(
+        "-j",
+        "--values-json",
+        help=(
+            "JSON file with field values; optional overlay sections "
+            "'texts', 'boxes', 'images' place content by coordinates "
+            "(works on non-fillable PDFs)"
+        ),
+    )
     fill_parser.add_argument("-f", "--field", action="append", help="Field to fill (name=value)")
     fill_parser.add_argument("-c", "--checkbox", action="append", help="Checkbox to check")
     fill_parser.add_argument(
@@ -490,7 +611,14 @@ Examples:
         "--preserve-existing", action="store_true", help="Preserve existing field values"
     )
     fill_parser.add_argument(
-        "--validate", action="store_true", help="Validate field names before filling"
+        "--validate",
+        action="store_true",
+        help="Validate field names before filling; exit non-zero if any are missing",
+    )
+    fill_parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail immediately when a field, checkbox, or dropdown value does not exist",
     )
     fill_parser.add_argument(
         "--dry-run", action="store_true", help="Show what would be filled without saving"
@@ -526,6 +654,11 @@ Examples:
         "--no-auto-dates",
         action="store_true",
         help="Disable automatic date filling for empty date fields",
+    )
+    batch_parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail a row when a CSV column does not match a form field",
     )
 
     # Inspect command

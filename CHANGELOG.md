@@ -9,11 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CLI overlay support: the fill JSON schema accepts `texts`, `boxes`, and `images` sections that place content by coordinates, enabling non-fillable PDFs (and signature placement) end to end from the CLI; entries appear in `--dry-run` and `--verbose` output
+- `--strict` flag on `fill` and `batch` passing library strict mode through; missing fields, checkboxes, or invalid choice values fail immediately instead of being silently skipped
 - Guard in `save()` raising `PDFWriteError` when the output path resolves to the input PDF, preventing destruction of the source file
 - `PDFReadError` and `PDFWriteError` are now exported from the `pdfiller` package
+- Adopted `ruff` for linting and formatting (config in `pyproject.toml`, added to the dev dependency group); codebase reformatted and all findings fixed
+
+### Changed
+
+- `fill --validate` now exits non-zero (without writing output) when any provided field name is missing; previously it only printed a warning and saved anyway
+- `template` and `export` no longer classify push buttons as checkboxes; push buttons are excluded from output entirely
 
 ### Fixed
 
+- Flatten temp file now gets a unique name via `tempfile.NamedTemporaryFile`, so concurrent fills targeting the same output path no longer clobber each other's temp file
+- Flattening now renders field values with `insert_textbox` clipped to the widget rect, shrinking the font stepwise until the text fits; long values no longer overflow the field and multiline values render on separate lines
 - Auto-date no longer fills non-signing date fields such as `date_of_birth`, `expiration_date`, `effective_date`, and `start_date`/`end_date`; only signature-adjacent dates (e.g. `sign_date`, `date_signed`) default to today
 - `batch` CLI command exits non-zero when any CSV row fails, so scripts and cron jobs can detect partial failure
 - Corrected the 1.1.0 changelog entry that described the one-shot `save()` restriction as an input-overwrite guard

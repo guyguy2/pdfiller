@@ -205,6 +205,35 @@ Fill the PDF:
 pdfiller fill -i form.pdf -j values.json -o filled.pdf
 ```
 
+### Fill Non-Fillable PDFs with Overlays
+
+The fill JSON also accepts overlay sections that place content by coordinates,
+for PDFs without form fields (or in addition to fields). Use `pdfiller inspect`
+to find coordinates.
+
+```json
+{
+  "texts": [
+    {"text": "John Doe", "x": 200, "y": 150, "page": 0}
+  ],
+  "boxes": [
+    {"text": "123 Main St\nAnytown, ST 12345", "x0": 100, "y0": 200, "x1": 400, "y1": 260, "page": 0}
+  ],
+  "images": [
+    {"path": "signature.png", "x0": 100, "y0": 500, "x1": 300, "y1": 550, "page": 1}
+  ]
+}
+```
+
+- `texts` places single-line text at a point (`x`, `y`); `boxes` wraps text inside a
+  bounding box; `images` stamps an image (signature, logo) into a bounding box.
+- `page` is 0-indexed and defaults to 0. `texts` and `boxes` accept an optional
+  `font_size` (default 10).
+
+```bash
+pdfiller fill -i scan.pdf -j values.json -o filled.pdf
+```
+
 ### Fill from Command Line
 
 ```bash
@@ -233,8 +262,22 @@ pdfiller fill -i form.pdf -j values.json -o filled.pdf --no-flatten
 
 ### Validate Before Filling
 
+Checks that all provided field names exist before filling; exits non-zero and
+does not write output if any are missing.
+
 ```bash
 pdfiller fill -i form.pdf -j values.json -o filled.pdf --validate
+```
+
+### Strict Mode
+
+Fails immediately when a field, checkbox, or dropdown value does not exist,
+instead of silently skipping it. Also available on `batch`, where it fails a
+row when a CSV column does not match a form field.
+
+```bash
+pdfiller fill -i form.pdf -f "nosuchfield=x" -o filled.pdf --strict
+pdfiller batch -i form.pdf --csv data.csv --output-dir ./filled/ --strict
 ```
 
 ## Common Patterns

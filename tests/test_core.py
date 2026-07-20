@@ -412,6 +412,79 @@ class TestFlattenPreservesExisting:
         assert "X" in text
 
 
+class TestFlattenTempFile:
+    """Flatten must use a unique temp file, not a deterministic one (C4)."""
+
+    def test_concurrent_temp_file_not_clobbered(self, fillable_pdf, tmp_path):
+        """A pre-existing .temp.pdf (another process's temp file under the old
+        deterministic naming) must survive a flatten save untouched."""
+        out = tmp_path / "filled.pdf"
+        other_temp = tmp_path / "filled.temp.pdf"
+        other_temp.write_bytes(b"other process data")
+
+        with PDFFiller(fillable_pdf) as f:
+            f.fill_field("first_name", "Guy")
+            f.save(out, flatten=True)
+
+        assert out.exists()
+        assert other_temp.read_bytes() == b"other process data"
+
+    def test_no_temp_files_left_behind(self, fillable_pdf, tmp_path):
+        out = tmp_path / "filled.pdf"
+        with PDFFiller(fillable_pdf) as f:
+            f.fill_field("first_name", "Guy")
+            f.save(out, flatten=True)
+
+        leftovers = [p for p in tmp_path.glob("*.temp.pdf")]
+        assert leftovers == []
+
+
+class TestFlattenTextFitsWidgetRect:
+    """Flattened field text must stay inside the widget rect (C5).
+
+    The first_name widget in the fillable_pdf fixture spans (100, 100, 300, 120).
+    """
+
+    FIELD_RECT = fitz.Rect(100, 100, 300, 120)
+    TOLERANCE = 1.0
+
+    def _rendered_words(self, fillable_pdf, tmp_path, value):
+        out = tmp_path / "flattened.pdf"
+        with PDFFiller(fillable_pdf, auto_fill_dates=False) as f:
+            f.fill_field("first_name", value)
+            f.save(out, flatten=True)
+        doc = fitz.open(str(out))
+        words = doc[0].get_text("words")
+        doc.close()
+        return words
+
+    def _assert_inside_rect(self, words):
+        rect = self.FIELD_RECT
+        for x0, y0, x1, y1, word, *_ in words:
+            assert x0 >= rect.x0 - self.TOLERANCE, f"{word!r} starts left of rect: {x0}"
+            assert x1 <= rect.x1 + self.TOLERANCE, f"{word!r} overflows right edge: {x1}"
+            assert y0 >= rect.y0 - self.TOLERANCE, f"{word!r} starts above rect: {y0}"
+            assert y1 <= rect.y1 + self.TOLERANCE, f"{word!r} overflows bottom edge: {y1}"
+
+    def test_long_value_stays_inside_rect(self, fillable_pdf, tmp_path):
+        value = "An exceptionally long single-line value that cannot fit the field " * 3
+        words = self._rendered_words(fillable_pdf, tmp_path, value.strip())
+        assert words, "no text rendered in flattened output"
+        self._assert_inside_rect(words)
+        rendered = {w[4] for w in words}
+        assert rendered == set(value.split()), "some words were not rendered"
+
+    def test_multiline_value_stays_inside_rect(self, fillable_pdf, tmp_path):
+        value = "Line one\nLine two\nLine three"
+        words = self._rendered_words(fillable_pdf, tmp_path, value)
+        assert words, "no text rendered in flattened output"
+        self._assert_inside_rect(words)
+        rendered = {w[4] for w in words}
+        assert rendered == {"Line", "one", "two", "three"}
+        distinct_rows = {round(w[1]) for w in words}
+        assert len(distinct_rows) >= 3, "multiline value rendered on fewer than 3 lines"
+
+
 class TestUncheckBox:
     def test_uncheck_pre_checked_box(self, fillable_pdf_with_checked_box, tmp_path):
         """Unchecking a pre-checked box should result in it being unchecked after save."""

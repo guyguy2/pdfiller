@@ -85,6 +85,10 @@ pdfiller fill -i form.pdf \
 
 # Preserve existing values (only fill empty fields)
 pdfiller fill -i form.pdf -j values.json -o filled.pdf --preserve-existing
+
+# Fill a non-fillable PDF via coordinate overlays in the JSON
+# ("texts", "boxes", "images" sections; see docs/USAGE.md)
+pdfiller fill -i scan.pdf -j values.json -o filled.pdf
 ```
 
 ## API Reference
