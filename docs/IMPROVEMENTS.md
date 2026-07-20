@@ -24,11 +24,6 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 ## 3. UX and CLI Usability
 
-- **U7. Date format hardcoded US style** (S)
-  `_format_today_date()` always emits M/D/YYYY (`core.py:366`).
-  *Fix:* `date_format` strftime parameter on `PDFFiller`, `--date-format` CLI flag; consider `_meta.date_format` defaults key for persistence.
-  *Verify:* `--date-format %Y-%m-%d` produces ISO dates in auto-filled fields.
-
 - **U8. Encrypted PDFs rejected outright** (S)
   Many "protected" PDFs open with an empty user password; users may legitimately have the password (`core.py:106`).
   *Fix:* try `doc.authenticate("")` before failing; add optional `password` parameter and `--password` flag.
@@ -113,6 +108,7 @@ From this improvement plan (completed 2026-07-20, unreleased):
 - **S2** - `fill --redact` masks field values in `--verbose`/`--dry-run` output (shows names and `[redacted, N chars]`), keeping values out of logs and shell history; overlay text is redacted too
 - **P4** - Added `pdfiller/py.typed` marker (ships in the wheel) so type checkers use the package's inline hints
 - **P7** - Added `pytest-cov` to the dev group; `uv run pytest --cov=pdfiller` reports coverage (currently ~90%)
+- **U7** - Configurable auto-date format: `date_format` strftime param on `PDFFiller`, `--date-format` flag on `fill`/`batch`, and `_meta.date_format` defaults key; precedence is flag > `_meta.date_format` > default M/D/YYYY
 
 From this improvement plan (completed 2026-07-20, released as 1.2.0):
 

@@ -87,6 +87,19 @@ def _queue_overlays(filler: PDFFiller, data: Dict[str, Any]) -> int:
     return count
 
 
+def _resolve_date_format(args) -> Optional[str]:
+    """Resolve the date format for auto-filled date fields.
+
+    Precedence: the --date-format flag, then a `_meta.date_format` key in the
+    stored defaults, then None (the default M/D/YYYY format).
+    """
+    explicit = getattr(args, "date_format", None)
+    if explicit:
+        return explicit
+    fmt = load_defaults().get("_meta", {}).get("date_format")
+    return fmt if isinstance(fmt, str) else None
+
+
 def _redact_value(value: Any) -> str:
     """Mask a field value for logging, revealing only its length.
 
@@ -200,7 +213,10 @@ def fill_command(args):
     try:
         auto_dates = not getattr(args, "no_auto_dates", False)
         strict = getattr(args, "strict", False)
-        with PDFFiller(args.input, auto_fill_dates=auto_dates, strict=strict) as filler:
+        date_format = _resolve_date_format(args)
+        with PDFFiller(
+            args.input, auto_fill_dates=auto_dates, strict=strict, date_format=date_format
+        ) as filler:
             # Set preserve mode
             filler.preserve_existing_fields(args.preserve_existing)
 
@@ -613,6 +629,7 @@ def batch_command(args):
     filled = 0
     errors = []
     used_names: set = set()
+    date_format = _resolve_date_format(args)
 
     for i, row in enumerate(rows, start=1):
         output_file = _batch_output_path(output_dir, stem, row, name_from, i, used_names)
@@ -621,6 +638,7 @@ def batch_command(args):
                 args.input,
                 auto_fill_dates=not args.no_auto_dates,
                 strict=getattr(args, "strict", False),
+                date_format=date_format,
             ) as filler:
                 # Every CSV column is applied as a field value by name. Checkbox
                 # columns are set through the same path, so they only toggle when
@@ -791,6 +809,13 @@ Examples:
         help="Disable automatic date filling for empty date fields",
     )
     fill_parser.add_argument(
+        "--date-format",
+        help=(
+            "strftime pattern for auto-filled date fields (e.g. %%Y-%%m-%%d); "
+            "overrides _meta.date_format in stored defaults"
+        ),
+    )
+    fill_parser.add_argument(
         "-d", "--use-defaults", action="store_true", help="Auto-fill fields from stored defaults"
     )
 
@@ -814,6 +839,13 @@ Examples:
         "--no-auto-dates",
         action="store_true",
         help="Disable automatic date filling for empty date fields",
+    )
+    batch_parser.add_argument(
+        "--date-format",
+        help=(
+            "strftime pattern for auto-filled date fields (e.g. %%Y-%%m-%%d); "
+            "overrides _meta.date_format in stored defaults"
+        ),
     )
     batch_parser.add_argument(
         "--strict",

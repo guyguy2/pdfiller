@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `fill --redact` masks field values in `--verbose` and `--dry-run` output, printing field names and value lengths (`[redacted, N chars]`) instead of the values, so scripted or CI runs do not leak values into logs and shell history
 - `py.typed` marker so type checkers pick up the package's inline type hints when it is installed as a dependency
 - `pytest-cov` in the dev dependency group; run `uv run pytest --cov=pdfiller` for a coverage report
+- Configurable date format for auto-filled date fields: `date_format` strftime parameter on `PDFFiller`, `--date-format` flag on `fill` and `batch`, and a `_meta.date_format` key in stored defaults (flag wins, then `_meta.date_format`, then the default M/D/YYYY)
 
 ### Changed
 

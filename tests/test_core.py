@@ -307,6 +307,24 @@ class TestAutoDateFilling:
         assert len(parts) == 3
         assert len(parts[2]) == 4  # year should be 4 digits
 
+    def test_format_today_date_custom_format(self):
+        from datetime import datetime
+
+        date_str = PDFFiller._format_today_date("%Y-%m-%d")
+        assert date_str == datetime.now().strftime("%Y-%m-%d")
+
+    def test_custom_date_format_used_for_auto_fill(self, fillable_pdf_with_dates, tmp_path):
+        from datetime import datetime
+
+        out = tmp_path / "iso_date.pdf"
+        with PDFFiller(fillable_pdf_with_dates, date_format="%Y-%m-%d") as f:
+            f.save(out, flatten=False)
+
+        doc = fitz.open(str(out))
+        values = {w.field_name: w.field_value for page in doc for w in page.widgets()}
+        doc.close()
+        assert values["sign_date"] == datetime.now().strftime("%Y-%m-%d")
+
     def test_auto_fills_empty_date_fields(self, fillable_pdf_with_dates, tmp_path):
         out = tmp_path / "auto_date.pdf"
 

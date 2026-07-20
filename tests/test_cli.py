@@ -190,6 +190,52 @@ class TestFillCommand:
         assert "Alice" not in result.stdout
         assert "[redacted, 5 chars]" in result.stdout
 
+    def test_date_format_flag_produces_iso_dates(self, fillable_pdf_with_dates, tmp_path):
+        import datetime
+
+        import fitz
+
+        out = tmp_path / "iso.pdf"
+        result = run_cli(
+            "fill",
+            "-i",
+            str(fillable_pdf_with_dates),
+            "-o",
+            str(out),
+            "--no-flatten",
+            "--date-format",
+            "%Y-%m-%d",
+        )
+        assert result.returncode == 0
+        doc = fitz.open(str(out))
+        values = {w.field_name: w.field_value for page in doc for w in page.widgets()}
+        doc.close()
+        assert values["sign_date"] == datetime.date.today().strftime("%Y-%m-%d")
+
+    def test_meta_date_format_used_when_no_flag(self, fillable_pdf_with_dates, tmp_path):
+        import datetime
+
+        import fitz
+
+        defaults_file = tmp_path / "defaults.json"
+        defaults_file.write_text(json.dumps({"_meta": {"date_format": "%Y-%m-%d"}}))
+        env = {"PDFILLER_DEFAULTS": str(defaults_file)}
+        out = tmp_path / "meta_iso.pdf"
+        result = run_cli(
+            "fill",
+            "-i",
+            str(fillable_pdf_with_dates),
+            "-o",
+            str(out),
+            "--no-flatten",
+            env=env,
+        )
+        assert result.returncode == 0
+        doc = fitz.open(str(out))
+        values = {w.field_name: w.field_value for page in doc for w in page.widgets()}
+        doc.close()
+        assert values["sign_date"] == datetime.date.today().strftime("%Y-%m-%d")
+
     def test_dry_run_lists_auto_date_fields(self, fillable_pdf_with_dates):
         result = run_cli(
             "fill",

@@ -47,6 +47,7 @@ class PDFFiller:
         strict: bool = False,
         max_pdf_size: Optional[int] = DEFAULT_MAX_PDF_SIZE,
         max_image_size: Optional[int] = DEFAULT_MAX_IMAGE_SIZE,
+        date_format: Optional[str] = None,
     ):
         """
         Initialize PDFFiller with a PDF file
@@ -61,6 +62,8 @@ class PDFFiller:
                 Set to None to disable the check.
             max_image_size: Maximum image file size in bytes (default 50 MB).
                 Set to None to disable the check.
+            date_format: strftime pattern for auto-filled date fields (e.g.
+                "%Y-%m-%d"). When None, uses the default M/D/YYYY format.
 
         Raises:
             PDFReadError: If PDF cannot be opened
@@ -68,6 +71,7 @@ class PDFFiller:
         """
         self.pdf_path = Path(pdf_path)
         self.auto_fill_dates = auto_fill_dates
+        self.date_format = date_format
         self._strict = strict
         self._max_pdf_size = max_pdf_size
         self._max_image_size = max_image_size
@@ -366,14 +370,20 @@ class PDFFiller:
         return not (tokens & PDFFiller._AUTO_DATE_EXCLUDED_TOKENS)
 
     @staticmethod
-    def _format_today_date() -> str:
+    def _format_today_date(date_format: Optional[str] = None) -> str:
         """
-        Get today's date formatted as M/D/YYYY (no leading zeros)
+        Get today's date as a string.
+
+        Args:
+            date_format: strftime pattern (e.g. "%Y-%m-%d"). When None, uses the
+                default M/D/YYYY format with no leading zeros.
 
         Returns:
             Today's date as a string
         """
         today = datetime.now()
+        if date_format:
+            return today.strftime(date_format)
         return f"{today.month}/{today.day}/{today.year}"
 
     def _apply_field_updates(self):
@@ -424,7 +434,7 @@ class PDFFiller:
                     and self._is_date_field(field_name)
                     and not widget.field_value
                 ):
-                    widget.field_value = self._format_today_date()
+                    widget.field_value = self._format_today_date(self.date_format)
                     widget.update()
 
     def has_form_fields(self) -> bool:
