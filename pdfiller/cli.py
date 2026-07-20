@@ -719,6 +719,7 @@ Examples:
 
     # List command
     list_parser = subparsers.add_parser("list", help="List all fields in a PDF")
+    list_parser.set_defaults(func=list_fields_command)
     list_parser.add_argument("-i", "--input", required=True, help="Input PDF file")
     list_parser.add_argument("-o", "--output", help="Save output to file (optional)")
     list_parser.add_argument(
@@ -730,6 +731,7 @@ Examples:
 
     # Fill command
     fill_parser = subparsers.add_parser("fill", help="Fill PDF form fields")
+    fill_parser.set_defaults(func=fill_command)
     fill_parser.add_argument("-i", "--input", required=True, help="Input PDF file")
     fill_parser.add_argument("-o", "--output", help="Output PDF file (required unless --dry-run)")
     fill_parser.add_argument(
@@ -779,6 +781,7 @@ Examples:
 
     # Batch command
     batch_parser = subparsers.add_parser("batch", help="Fill a PDF for each row in a CSV file")
+    batch_parser.set_defaults(func=batch_command)
     batch_parser.add_argument("-i", "--input", required=True, help="Input PDF file")
     batch_parser.add_argument(
         "--csv", required=True, help="CSV file with field values (header = field names)"
@@ -820,10 +823,12 @@ Examples:
     inspect_parser = subparsers.add_parser(
         "inspect", help="Inspect text layout of a non-fillable PDF"
     )
+    inspect_parser.set_defaults(func=inspect_command)
     inspect_parser.add_argument("-i", "--input", required=True, help="Input PDF file")
 
     # Export command
     export_parser = subparsers.add_parser("export", help="Extract field values from a filled PDF")
+    export_parser.set_defaults(func=export_command)
     export_parser.add_argument("-i", "--input", required=True, help="Input PDF file")
     export_parser.add_argument(
         "-o", "--output", help="Output JSON file (prints to stdout if omitted)"
@@ -831,6 +836,7 @@ Examples:
 
     # Template command
     template_parser = subparsers.add_parser("template", help="Generate template JSON for a PDF")
+    template_parser.set_defaults(func=template_command)
     template_parser.add_argument("-i", "--input", required=True, help="Input PDF file")
     template_parser.add_argument(
         "-o", "--output", help="Output JSON template file (prints to stdout if omitted)"
@@ -838,6 +844,7 @@ Examples:
 
     # Defaults command
     defaults_parser = subparsers.add_parser("defaults", help="Manage stored defaults")
+    defaults_parser.set_defaults(func=defaults_command)
     defaults_sub = defaults_parser.add_subparsers(dest="defaults_action", help="Defaults action")
 
     defaults_sub.add_parser("show", help="Display current defaults")
@@ -864,24 +871,12 @@ Examples:
         parser.print_help()
         sys.exit(1)
 
-    # Execute command
-    if args.command == "list":
-        list_fields_command(args)
-    elif args.command == "fill":
-        fill_command(args)
-    elif args.command == "batch":
-        batch_command(args)
-    elif args.command == "inspect":
-        inspect_command(args)
-    elif args.command == "export":
-        export_command(args)
-    elif args.command == "template":
-        template_command(args)
-    elif args.command == "defaults":
-        if not args.defaults_action:
-            defaults_parser.print_help()
-            sys.exit(1)
-        defaults_command(args)
+    # The defaults command has nested subcommands; with no action, show its help.
+    if args.command == "defaults" and not args.defaults_action:
+        defaults_parser.print_help()
+        sys.exit(1)
+
+    args.func(args)
 
 
 if __name__ == "__main__":

@@ -53,11 +53,6 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
   *Fix:* small `@dataclass TextOverlay` / `BoxOverlay` / `ImageOverlay`; makes `pending_operations` richer for free (pairs with C12).
   *Verify:* type checker clean; behavior unchanged.
 
-- **A4. CLI dispatch boilerplate** (S)
-  `if args.command == ...` chain duplicates the subparser list (`cli.py:572`).
-  *Fix:* `set_defaults(func=...)` per subparser; call `args.func(args)`.
-  *Verify:* all CLI tests pass.
-
 - **A5. `fill()` non-fillable spec only supports point text** (S)
   Coordinate-dict schema accepts `text/x/y` but not the box form or images, so the high-level API covers less than the low-level one (`core.py:228`).
   *Fix:* extend spec with `"box"` and `"image"` entry types; align with the U1 JSON schema so library and CLI share one format.
@@ -136,6 +131,7 @@ From this improvement plan (completed 2026-07-20, unreleased):
 
 - **U6** - `defaults add <key> <value>` appends to a list default (creates a one-element list if absent, promotes an existing string leaf to a two-element list); new `_add_nested` helper backs it
 - **U9** - Unified read-only output via a shared `_write_output(text, path)` helper; `list`, `export`, and `template` all default to stdout and accept `-o`; `template` no longer requires `-o`
+- **A4** - CLI dispatch now uses `set_defaults(func=...)` per subparser and calls `args.func(args)`; the command if-chain is gone (one special case remains for the `defaults` no-action help). Internal refactor, no user-facing change
 
 From this improvement plan (completed 2026-07-20, released as 1.2.0):
 
