@@ -186,8 +186,8 @@ class TestInsertText:
         with PDFFiller(non_fillable_pdf) as f:
             f.insert_text("Hello", 100, 200)
             assert len(f._text_overlays) == 1
-            assert f._text_overlays[0]["type"] == "point"
-            assert f._text_overlays[0]["text"] == "Hello"
+            assert f._text_overlays[0].type == "point"
+            assert f._text_overlays[0].text == "Hello"
 
     def test_saves_with_text(self, non_fillable_pdf, tmp_path):
         out = tmp_path / "with_text.pdf"
@@ -213,7 +213,7 @@ class TestInsertTextBox:
         with PDFFiller(non_fillable_pdf) as f:
             f.insert_text_box("Boxed text", 100, 200, 300, 250)
             assert len(f._text_overlays) == 1
-            assert f._text_overlays[0]["type"] == "box"
+            assert f._text_overlays[0].type == "box"
 
     def test_saves_with_text_box(self, non_fillable_pdf, tmp_path):
         out = tmp_path / "with_box.pdf"
@@ -232,7 +232,7 @@ class TestInsertImage:
         with PDFFiller(non_fillable_pdf) as f:
             f.insert_image(tiny_png, 100, 200, 300, 250)
             assert len(f._image_overlays) == 1
-            assert f._image_overlays[0]["image_path"] == str(tiny_png)
+            assert f._image_overlays[0].image_path == str(tiny_png)
 
     def test_saves_with_image(self, non_fillable_pdf, tiny_png, tmp_path):
         out = tmp_path / "with_image.pdf"
@@ -953,7 +953,7 @@ class TestFillMethod:
                     },
                 }
             )
-            assert f._text_overlays[0]["font_size"] == 24
+            assert f._text_overlays[0].font_size == 24
             f.save(out, flatten=False)
 
 

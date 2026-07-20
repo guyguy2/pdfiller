@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import tempfile
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional, Union
@@ -14,6 +15,7 @@ import pymupdf
 
 from .exceptions import FieldNotFoundError, PDFFillerError, PDFReadError, PDFWriteError
 from .fields import is_checkbox, is_choice_widget
+from .overlays import BoxTextOverlay, ImageOverlay, PointTextOverlay
 
 logger = logging.getLogger(__name__)
 
@@ -122,8 +124,8 @@ class PDFFiller:
         self._fields_to_fill: dict[str, Any] = {}
         self._checkboxes_to_check: set = set()
         self._checkboxes_to_uncheck: set = set()
-        self._text_overlays: list = []
-        self._image_overlays: list = []
+        self._text_overlays: list[Union[PointTextOverlay, BoxTextOverlay]] = []
+        self._image_overlays: list[ImageOverlay] = []
         self._preserve_existing = False
         self._skipped_operations: list[dict[str, Any]] = []
         self._saved = False
@@ -522,16 +524,15 @@ class PDFFiller:
         if page_num < 0 or page_num >= self.page_count:
             raise PDFFillerError(f"Page {page_num} out of range (0-{self.page_count - 1})")
         self._text_overlays.append(
-            {
-                "type": "point",
-                "text": text,
-                "x": x,
-                "y": y,
-                "page_num": page_num,
-                "font_size": font_size,
-                "font_name": font_name,
-                "color": color,
-            }
+            PointTextOverlay(
+                text=text,
+                x=x,
+                y=y,
+                page_num=page_num,
+                font_size=font_size,
+                font_name=font_name,
+                color=color,
+            )
         )
         return self
 
@@ -563,15 +564,14 @@ class PDFFiller:
         if page_num < 0 or page_num >= self.page_count:
             raise PDFFillerError(f"Page {page_num} out of range (0-{self.page_count - 1})")
         self._text_overlays.append(
-            {
-                "type": "box",
-                "text": text,
-                "rect": (x0, y0, x1, y1),
-                "page_num": page_num,
-                "font_size": font_size,
-                "font_name": font_name,
-                "color": color,
-            }
+            BoxTextOverlay(
+                text=text,
+                rect=(x0, y0, x1, y1),
+                page_num=page_num,
+                font_size=font_size,
+                font_name=font_name,
+                color=color,
+            )
         )
         return self
 
@@ -631,12 +631,12 @@ class PDFFiller:
             raise PDFFillerError(f"Invalid or unsupported image file: {image_path}") from e
 
         self._image_overlays.append(
-            {
-                "image_path": str(image_path),
-                "rect": (x0, y0, x1, y1),
-                "page_num": page_num,
-                "keep_proportion": keep_proportion,
-            }
+            ImageOverlay(
+                image_path=str(image_path),
+                rect=(x0, y0, x1, y1),
+                page_num=page_num,
+                keep_proportion=keep_proportion,
+            )
         )
         return self
 
@@ -644,34 +644,34 @@ class PDFFiller:
         """Write all queued image overlays to their respective pages."""
         for overlay in self._image_overlays:
             # insert_image() already validated page_num when the overlay was queued
-            page = self.doc[overlay["page_num"]]
+            page = self.doc[overlay.page_num]
             page.insert_image(
-                pymupdf.Rect(overlay["rect"]),
-                filename=overlay["image_path"],
-                keep_proportion=overlay["keep_proportion"],
+                pymupdf.Rect(overlay.rect),
+                filename=overlay.image_path,
+                keep_proportion=overlay.keep_proportion,
             )
 
     def _apply_text_overlays(self):
         """Write all queued text overlays to their respective pages."""
         for overlay in self._text_overlays:
             # insert_text()/insert_text_box() already validated page_num on queue
-            page = self.doc[overlay["page_num"]]
+            page = self.doc[overlay.page_num]
 
-            if overlay["type"] == "point":
+            if isinstance(overlay, PointTextOverlay):
                 page.insert_text(
-                    (overlay["x"], overlay["y"]),
-                    overlay["text"],
-                    fontsize=overlay["font_size"],
-                    fontname=overlay["font_name"],
-                    color=overlay["color"],
+                    (overlay.x, overlay.y),
+                    overlay.text,
+                    fontsize=overlay.font_size,
+                    fontname=overlay.font_name,
+                    color=overlay.color,
                 )
-            elif overlay["type"] == "box":
+            elif isinstance(overlay, BoxTextOverlay):
                 page.insert_textbox(
-                    pymupdf.Rect(overlay["rect"]),
-                    overlay["text"],
-                    fontsize=overlay["font_size"],
-                    fontname=overlay["font_name"],
-                    color=overlay["color"],
+                    pymupdf.Rect(overlay.rect),
+                    overlay.text,
+                    fontsize=overlay.font_size,
+                    fontname=overlay.font_name,
+                    color=overlay.color,
                 )
 
     @staticmethod
@@ -880,8 +880,8 @@ class PDFFiller:
             "fields": dict(self._fields_to_fill),
             "check": set(self._checkboxes_to_check),
             "uncheck": set(self._checkboxes_to_uncheck),
-            "text_overlays": [dict(o) for o in self._text_overlays],
-            "image_overlays": [dict(o) for o in self._image_overlays],
+            "text_overlays": [asdict(o) for o in self._text_overlays],
+            "image_overlays": [asdict(o) for o in self._image_overlays],
             "auto_date_fields": self._compute_auto_date_fields(),
         }
 
