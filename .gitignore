@@ -6,6 +6,7 @@ __pycache__/
 dist/
 build/
 .pytest_cache/
+.coverage
 *.temp.pdf
 scratch/
 examples/*_filled.pdf
