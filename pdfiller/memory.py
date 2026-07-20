@@ -11,7 +11,7 @@ import re
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from .exceptions import DefaultsValidationError
 
@@ -48,16 +48,12 @@ def validate_defaults(data: Dict[str, Any]) -> None:
     Raises DefaultsValidationError if the structure is invalid.
     """
     if not isinstance(data, dict):
-        raise DefaultsValidationError(
-            f"Defaults must be a dict, got {type(data).__name__}"
-        )
+        raise DefaultsValidationError(f"Defaults must be a dict, got {type(data).__name__}")
 
     for key, value in data.items():
         if key == "_meta":
             if not isinstance(value, dict):
-                raise DefaultsValidationError(
-                    f"_meta must be a dict, got {type(value).__name__}"
-                )
+                raise DefaultsValidationError(f"_meta must be a dict, got {type(value).__name__}")
             continue
 
         # Top-level string values are allowed (flat defaults)
@@ -97,8 +93,7 @@ def _validate_category(category: str, fields: dict) -> None:
         if field_name == "_aliases":
             if not isinstance(field_value, dict):
                 raise DefaultsValidationError(
-                    f"_aliases in '{category}' must be a dict, "
-                    f"got {type(field_value).__name__}"
+                    f"_aliases in '{category}' must be a dict, got {type(field_value).__name__}"
                 )
             for alias, target in field_value.items():
                 if not isinstance(alias, str) or not isinstance(target, str):

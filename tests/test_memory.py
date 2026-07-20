@@ -7,6 +7,7 @@ import pytest
 from pdfiller.exceptions import DefaultsValidationError
 from pdfiller.memory import (
     _normalize,
+    _register_default_matchers,
     build_alias_matcher,
     clear_matchers,
     flatten_defaults,
@@ -17,7 +18,6 @@ from pdfiller.memory import (
     save_defaults,
     unregister_matcher,
     validate_defaults,
-    _register_default_matchers,
 )
 
 

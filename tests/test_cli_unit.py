@@ -6,9 +6,8 @@ PDFFiller class, avoiding subprocess overhead and real PDF I/O.
 """
 
 import json
-import sys
 from argparse import Namespace
-from unittest.mock import MagicMock, mock_open, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -25,7 +24,6 @@ from pdfiller.cli import (
     template_command,
 )
 from pdfiller.exceptions import DefaultsValidationError, PDFFillerError
-
 
 # ---------------------------------------------------------------------------
 # Shared helpers and sample data
@@ -70,6 +68,7 @@ def _make_filler_mock(fields=None, page_count=1, pending=None, layouts=None):
 # Format helpers
 # ---------------------------------------------------------------------------
 
+
 class TestFormatFieldsTable:
     def test_includes_field_count(self):
         output = _format_fields_table(SAMPLE_FIELDS, "form.pdf")
@@ -94,7 +93,7 @@ class TestFormatFieldsTable:
         output = _format_fields_table(SAMPLE_FIELDS, "form.pdf")
         # first_name has empty value - should not show "Current value" for it
         lines = output.split("\n")
-        first_name_idx = next(i for i, l in enumerate(lines) if "first_name" in l)
+        first_name_idx = next(i for i, line in enumerate(lines) if "first_name" in line)
         # The line after "first_name" should show Type, not Current value
         assert "Type:" in lines[first_name_idx + 1]
 
@@ -141,6 +140,7 @@ class TestFormatFieldsCsv:
 # load_values_from_json
 # ---------------------------------------------------------------------------
 
+
 class TestLoadValuesFromJson:
     def test_loads_valid_json(self, tmp_path):
         json_file = tmp_path / "values.json"
@@ -162,6 +162,7 @@ class TestLoadValuesFromJson:
 # ---------------------------------------------------------------------------
 # list_fields_command
 # ---------------------------------------------------------------------------
+
 
 class TestListFieldsCommand:
     def test_table_format_to_stdout(self, capsys):
@@ -225,9 +226,8 @@ class TestListFieldsCommand:
         filler.__enter__.side_effect = PDFFillerError("bad pdf")
         args = Namespace(input="bad.pdf", output=None, format="table")
 
-        with patch("pdfiller.cli.PDFFiller", return_value=filler):
-            with pytest.raises(SystemExit):
-                list_fields_command(args)
+        with patch("pdfiller.cli.PDFFiller", return_value=filler), pytest.raises(SystemExit):
+            list_fields_command(args)
 
         err = capsys.readouterr().err
         assert "Error:" in err
@@ -236,6 +236,7 @@ class TestListFieldsCommand:
 # ---------------------------------------------------------------------------
 # fill_command
 # ---------------------------------------------------------------------------
+
 
 class TestFillCommand:
     def _base_args(self, **overrides):
@@ -294,10 +295,14 @@ class TestFillCommand:
 
     def test_fill_from_json(self, tmp_path, capsys):
         json_file = tmp_path / "vals.json"
-        json_file.write_text(json.dumps({
-            "fields": {"first_name": "Bob"},
-            "checkboxes": ["agree_terms"],
-        }))
+        json_file.write_text(
+            json.dumps(
+                {
+                    "fields": {"first_name": "Bob"},
+                    "checkboxes": ["agree_terms"],
+                }
+            )
+        )
         filler = _make_filler_mock(
             pending={"fields": {"first_name": "Bob"}, "check": ["agree_terms"], "uncheck": []},
         )
@@ -313,9 +318,8 @@ class TestFillCommand:
         filler = _make_filler_mock()
         args = self._base_args(field=["no_equals_sign"])
 
-        with patch("pdfiller.cli.PDFFiller", return_value=filler):
-            with pytest.raises(SystemExit):
-                fill_command(args)
+        with patch("pdfiller.cli.PDFFiller", return_value=filler), pytest.raises(SystemExit):
+            fill_command(args)
 
         err = capsys.readouterr().err
         assert "Invalid field format" in err
@@ -425,10 +429,11 @@ class TestFillCommand:
         defaults_data = {"first_name": "DefaultGuy", "email": "guy@example.com"}
         args = self._base_args(use_defaults=True, dry_run=True, output=None)
 
-        with patch("pdfiller.cli.PDFFiller", return_value=filler), \
-             patch("pdfiller.cli.load_defaults", return_value={"personal": {"first_name": "DefaultGuy"}}), \
-             patch("pdfiller.cli.flatten_defaults", return_value=defaults_data), \
-             patch("pdfiller.cli.match_field_to_defaults", side_effect=lambda n, d: d.get(n)):
+        with patch("pdfiller.cli.PDFFiller", return_value=filler), patch(
+            "pdfiller.cli.load_defaults", return_value={"personal": {"first_name": "DefaultGuy"}}
+        ), patch("pdfiller.cli.flatten_defaults", return_value=defaults_data), patch(
+            "pdfiller.cli.match_field_to_defaults", side_effect=lambda n, d: d.get(n)
+        ):
             fill_command(args)
 
         # Should have called fill_field for each matched default
@@ -445,10 +450,12 @@ class TestFillCommand:
         def mock_match(name, defaults):
             return ["a@example.com", "b@example.com"]
 
-        with patch("pdfiller.cli.PDFFiller", return_value=filler), \
-             patch("pdfiller.cli.load_defaults", return_value={"personal": {}}), \
-             patch("pdfiller.cli.flatten_defaults", return_value={"email": ["a@example.com", "b@example.com"]}), \
-             patch("pdfiller.cli.match_field_to_defaults", side_effect=mock_match):
+        with patch("pdfiller.cli.PDFFiller", return_value=filler), patch(
+            "pdfiller.cli.load_defaults", return_value={"personal": {}}
+        ), patch(
+            "pdfiller.cli.flatten_defaults",
+            return_value={"email": ["a@example.com", "b@example.com"]},
+        ), patch("pdfiller.cli.match_field_to_defaults", side_effect=mock_match):
             fill_command(args)
 
         # Should not call fill_field for list matches
@@ -459,9 +466,8 @@ class TestFillCommand:
         filler.__enter__.side_effect = PDFFillerError("bad pdf")
         args = self._base_args(field=["first_name=X"])
 
-        with patch("pdfiller.cli.PDFFiller", return_value=filler):
-            with pytest.raises(SystemExit):
-                fill_command(args)
+        with patch("pdfiller.cli.PDFFiller", return_value=filler), pytest.raises(SystemExit):
+            fill_command(args)
 
         err = capsys.readouterr().err
         assert "Error:" in err
@@ -469,10 +475,14 @@ class TestFillCommand:
     def test_field_overrides_json(self, tmp_path, capsys):
         """When both -j and -f are used, -f values override -j values."""
         json_file = tmp_path / "vals.json"
-        json_file.write_text(json.dumps({
-            "fields": {"first_name": "FromJSON"},
-            "checkboxes": [],
-        }))
+        json_file.write_text(
+            json.dumps(
+                {
+                    "fields": {"first_name": "FromJSON"},
+                    "checkboxes": [],
+                }
+            )
+        )
         filler = _make_filler_mock(
             pending={"fields": {"first_name": "FromCLI"}, "check": [], "uncheck": []},
         )
@@ -505,6 +515,7 @@ class TestFillCommand:
 # inspect_command
 # ---------------------------------------------------------------------------
 
+
 class TestInspectCommand:
     def test_single_page_output(self, capsys):
         filler = _make_filler_mock(page_count=1)
@@ -519,9 +530,13 @@ class TestInspectCommand:
 
     def test_multi_page_output(self, capsys):
         layouts = {
-            0: {"width": 612, "height": 792, "blocks": [
-                {"text": "Page zero", "bbox": {"x0": 10, "y0": 20, "x1": 200, "y1": 40}},
-            ]},
+            0: {
+                "width": 612,
+                "height": 792,
+                "blocks": [
+                    {"text": "Page zero", "bbox": {"x0": 10, "y0": 20, "x1": 200, "y1": 40}},
+                ],
+            },
             1: {"width": 612, "height": 792, "blocks": []},
         }
         filler = _make_filler_mock(page_count=2, layouts=layouts)
@@ -561,9 +576,8 @@ class TestInspectCommand:
         filler.__enter__.side_effect = PDFFillerError("cannot open")
         args = Namespace(input="bad.pdf")
 
-        with patch("pdfiller.cli.PDFFiller", return_value=filler):
-            with pytest.raises(SystemExit):
-                inspect_command(args)
+        with patch("pdfiller.cli.PDFFiller", return_value=filler), pytest.raises(SystemExit):
+            inspect_command(args)
 
         err = capsys.readouterr().err
         assert "Error:" in err
@@ -572,6 +586,7 @@ class TestInspectCommand:
 # ---------------------------------------------------------------------------
 # export_command
 # ---------------------------------------------------------------------------
+
 
 class TestExportCommand:
     def test_export_to_stdout(self, capsys):
@@ -644,14 +659,14 @@ class TestExportCommand:
         filler.__enter__.side_effect = PDFFillerError("bad pdf")
         args = Namespace(input="bad.pdf", output=None)
 
-        with patch("pdfiller.cli.PDFFiller", return_value=filler):
-            with pytest.raises(SystemExit):
-                export_command(args)
+        with patch("pdfiller.cli.PDFFiller", return_value=filler), pytest.raises(SystemExit):
+            export_command(args)
 
 
 # ---------------------------------------------------------------------------
 # template_command
 # ---------------------------------------------------------------------------
+
 
 class TestTemplateCommand:
     def test_generates_template(self, tmp_path, capsys):
@@ -688,14 +703,14 @@ class TestTemplateCommand:
         filler.__enter__.side_effect = PDFFillerError("bad pdf")
         args = Namespace(input="bad.pdf", output="/tmp/template.json")
 
-        with patch("pdfiller.cli.PDFFiller", return_value=filler):
-            with pytest.raises(SystemExit):
-                template_command(args)
+        with patch("pdfiller.cli.PDFFiller", return_value=filler), pytest.raises(SystemExit):
+            template_command(args)
 
 
 # ---------------------------------------------------------------------------
 # defaults_command
 # ---------------------------------------------------------------------------
+
 
 class TestDefaultsCommandShow:
     def test_show_empty(self, capsys):
@@ -745,9 +760,8 @@ class TestDefaultsCommandGet:
     def test_get_missing_key_exits(self, capsys):
         data = {"personal": {"first_name": "Guy"}}
         args = Namespace(defaults_action="get", key="personal.email")
-        with patch("pdfiller.cli.load_defaults", return_value=data):
-            with pytest.raises(SystemExit):
-                defaults_command(args)
+        with patch("pdfiller.cli.load_defaults", return_value=data), pytest.raises(SystemExit):
+            defaults_command(args)
         err = capsys.readouterr().err
         assert "Not found" in err
 
@@ -756,8 +770,9 @@ class TestDefaultsCommandSet:
     def test_set_new_value(self, capsys):
         data = {}
         args = Namespace(defaults_action="set", key="personal.first_name", value="Guy")
-        with patch("pdfiller.cli.load_defaults", return_value=data), \
-             patch("pdfiller.cli.save_defaults") as mock_save:
+        with patch("pdfiller.cli.load_defaults", return_value=data), patch(
+            "pdfiller.cli.save_defaults"
+        ) as mock_save:
             defaults_command(args)
         mock_save.assert_called_once()
         saved = mock_save.call_args[0][0]
@@ -768,8 +783,9 @@ class TestDefaultsCommandSet:
     def test_set_overwrites_existing(self, capsys):
         data = {"personal": {"first_name": "Old"}}
         args = Namespace(defaults_action="set", key="personal.first_name", value="New")
-        with patch("pdfiller.cli.load_defaults", return_value=data), \
-             patch("pdfiller.cli.save_defaults") as mock_save:
+        with patch("pdfiller.cli.load_defaults", return_value=data), patch(
+            "pdfiller.cli.save_defaults"
+        ) as mock_save:
             defaults_command(args)
         saved = mock_save.call_args[0][0]
         assert saved["personal"]["first_name"] == "New"
@@ -779,8 +795,9 @@ class TestDefaultsCommandRemove:
     def test_remove_existing(self, capsys):
         data = {"personal": {"first_name": "Guy", "last_name": "Test"}}
         args = Namespace(defaults_action="remove", key="personal.first_name")
-        with patch("pdfiller.cli.load_defaults", return_value=data), \
-             patch("pdfiller.cli.save_defaults") as mock_save:
+        with patch("pdfiller.cli.load_defaults", return_value=data), patch(
+            "pdfiller.cli.save_defaults"
+        ) as mock_save:
             defaults_command(args)
         mock_save.assert_called_once()
         saved = mock_save.call_args[0][0]
@@ -792,10 +809,10 @@ class TestDefaultsCommandRemove:
     def test_remove_missing_exits(self, capsys):
         data = {"personal": {"first_name": "Guy"}}
         args = Namespace(defaults_action="remove", key="personal.email")
-        with patch("pdfiller.cli.load_defaults", return_value=data), \
-             patch("pdfiller.cli.save_defaults"):
-            with pytest.raises(SystemExit):
-                defaults_command(args)
+        with patch("pdfiller.cli.load_defaults", return_value=data), patch(
+            "pdfiller.cli.save_defaults"
+        ), pytest.raises(SystemExit):
+            defaults_command(args)
         err = capsys.readouterr().err
         assert "Not found" in err
 
@@ -805,21 +822,20 @@ class TestDefaultsCommandErrors:
         """A corrupt-schema defaults file must produce a clean error, not a
         traceback (regression: defaults_command lacked error handling)."""
         args = Namespace(defaults_action="show")
-        with patch("pdfiller.cli.load_defaults",
-                   side_effect=DefaultsValidationError("bad schema")):
-            with pytest.raises(SystemExit):
-                defaults_command(args)
+        with patch(
+            "pdfiller.cli.load_defaults", side_effect=DefaultsValidationError("bad schema")
+        ), pytest.raises(SystemExit):
+            defaults_command(args)
         err = capsys.readouterr().err
         assert "Error" in err
 
     def test_save_failure_exits_cleanly(self, capsys):
         """A validation error while saving must exit cleanly."""
         args = Namespace(defaults_action="set", key="personal.x", value="y")
-        with patch("pdfiller.cli.load_defaults", return_value={}), \
-             patch("pdfiller.cli.save_defaults",
-                   side_effect=DefaultsValidationError("bad")):
-            with pytest.raises(SystemExit):
-                defaults_command(args)
+        with patch("pdfiller.cli.load_defaults", return_value={}), patch(
+            "pdfiller.cli.save_defaults", side_effect=DefaultsValidationError("bad")
+        ), pytest.raises(SystemExit):
+            defaults_command(args)
         err = capsys.readouterr().err
         assert "Error" in err
 
@@ -828,19 +844,22 @@ class TestDefaultsCommandErrors:
 # Argument parsing via main()
 # ---------------------------------------------------------------------------
 
+
 class TestMainArgParsing:
     """Test that main() dispatches to the right command functions."""
 
     def test_no_command_exits(self):
-        with patch("sys.argv", ["pdfiller"]):
-            with pytest.raises(SystemExit):
-                from pdfiller.cli import main
-                main()
+        with patch("sys.argv", ["pdfiller"]), pytest.raises(SystemExit):
+            from pdfiller.cli import main
+
+            main()
 
     def test_list_dispatches(self):
-        with patch("sys.argv", ["pdfiller", "list", "-i", "form.pdf"]), \
-             patch("pdfiller.cli.list_fields_command") as mock_cmd:
+        with patch("sys.argv", ["pdfiller", "list", "-i", "form.pdf"]), patch(
+            "pdfiller.cli.list_fields_command"
+        ) as mock_cmd:
             from pdfiller.cli import main
+
             main()
         mock_cmd.assert_called_once()
         args = mock_cmd.call_args[0][0]
@@ -848,9 +867,11 @@ class TestMainArgParsing:
         assert args.command == "list"
 
     def test_fill_dispatches(self):
-        with patch("sys.argv", ["pdfiller", "fill", "-i", "form.pdf", "-o", "out.pdf"]), \
-             patch("pdfiller.cli.fill_command") as mock_cmd:
+        with patch("sys.argv", ["pdfiller", "fill", "-i", "form.pdf", "-o", "out.pdf"]), patch(
+            "pdfiller.cli.fill_command"
+        ) as mock_cmd:
             from pdfiller.cli import main
+
             main()
         mock_cmd.assert_called_once()
         args = mock_cmd.call_args[0][0]
@@ -858,68 +879,100 @@ class TestMainArgParsing:
         assert args.output == "out.pdf"
 
     def test_inspect_dispatches(self):
-        with patch("sys.argv", ["pdfiller", "inspect", "-i", "form.pdf"]), \
-             patch("pdfiller.cli.inspect_command") as mock_cmd:
+        with patch("sys.argv", ["pdfiller", "inspect", "-i", "form.pdf"]), patch(
+            "pdfiller.cli.inspect_command"
+        ) as mock_cmd:
             from pdfiller.cli import main
+
             main()
         mock_cmd.assert_called_once()
 
     def test_export_dispatches(self):
-        with patch("sys.argv", ["pdfiller", "export", "-i", "form.pdf"]), \
-             patch("pdfiller.cli.export_command") as mock_cmd:
+        with patch("sys.argv", ["pdfiller", "export", "-i", "form.pdf"]), patch(
+            "pdfiller.cli.export_command"
+        ) as mock_cmd:
             from pdfiller.cli import main
+
             main()
         mock_cmd.assert_called_once()
 
     def test_template_dispatches(self):
-        with patch("sys.argv", ["pdfiller", "template", "-i", "form.pdf", "-o", "tpl.json"]), \
-             patch("pdfiller.cli.template_command") as mock_cmd:
+        with patch("sys.argv", ["pdfiller", "template", "-i", "form.pdf", "-o", "tpl.json"]), patch(
+            "pdfiller.cli.template_command"
+        ) as mock_cmd:
             from pdfiller.cli import main
+
             main()
         mock_cmd.assert_called_once()
 
     def test_defaults_show_dispatches(self):
-        with patch("sys.argv", ["pdfiller", "defaults", "show"]), \
-             patch("pdfiller.cli.defaults_command") as mock_cmd:
+        with patch("sys.argv", ["pdfiller", "defaults", "show"]), patch(
+            "pdfiller.cli.defaults_command"
+        ) as mock_cmd:
             from pdfiller.cli import main
+
             main()
         mock_cmd.assert_called_once()
         args = mock_cmd.call_args[0][0]
         assert args.defaults_action == "show"
 
     def test_defaults_no_action_exits(self):
-        with patch("sys.argv", ["pdfiller", "defaults"]):
-            with pytest.raises(SystemExit):
-                from pdfiller.cli import main
-                main()
+        with patch("sys.argv", ["pdfiller", "defaults"]), pytest.raises(SystemExit):
+            from pdfiller.cli import main
+
+            main()
 
     def test_fill_parses_multiple_fields(self):
-        with patch("sys.argv", [
-            "pdfiller", "fill", "-i", "f.pdf", "-o", "o.pdf",
-            "-f", "a=1", "-f", "b=2", "-c", "check1",
-        ]), \
-             patch("pdfiller.cli.fill_command") as mock_cmd:
+        with patch(
+            "sys.argv",
+            [
+                "pdfiller",
+                "fill",
+                "-i",
+                "f.pdf",
+                "-o",
+                "o.pdf",
+                "-f",
+                "a=1",
+                "-f",
+                "b=2",
+                "-c",
+                "check1",
+            ],
+        ), patch("pdfiller.cli.fill_command") as mock_cmd:
             from pdfiller.cli import main
+
             main()
         args = mock_cmd.call_args[0][0]
         assert args.field == ["a=1", "b=2"]
         assert args.checkbox == ["check1"]
 
     def test_fill_dry_run_flag(self):
-        with patch("sys.argv", [
-            "pdfiller", "fill", "-i", "f.pdf", "--dry-run", "-f", "a=1",
-        ]), \
-             patch("pdfiller.cli.fill_command") as mock_cmd:
+        with patch(
+            "sys.argv",
+            [
+                "pdfiller",
+                "fill",
+                "-i",
+                "f.pdf",
+                "--dry-run",
+                "-f",
+                "a=1",
+            ],
+        ), patch("pdfiller.cli.fill_command") as mock_cmd:
             from pdfiller.cli import main
+
             main()
         args = mock_cmd.call_args[0][0]
         assert args.dry_run is True
         assert args.output is None  # Not required for dry run
 
     def test_list_format_flag(self):
-        with patch("sys.argv", ["pdfiller", "list", "-i", "f.pdf", "--format", "csv"]), \
-             patch("pdfiller.cli.list_fields_command") as mock_cmd:
+        with patch("sys.argv", ["pdfiller", "list", "-i", "f.pdf", "--format", "csv"]), patch(
+            "pdfiller.cli.list_fields_command"
+        ) as mock_cmd:
             from pdfiller.cli import main
+
             main()
         args = mock_cmd.call_args[0][0]
         assert args.format == "csv"

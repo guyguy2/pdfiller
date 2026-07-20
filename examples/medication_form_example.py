@@ -22,7 +22,6 @@ def fill_medication_form():
 
     # Create the filler
     with PDFFiller(input_pdf) as filler:
-
         # Option 1: Preserve existing student information
         filler.preserve_existing_fields(True)
 
@@ -56,7 +55,7 @@ def fill_medication_form():
 
         # Check boxes for self-administration
         filler.check_box("parent_administer-2")  # Permit self-administration
-        filler.check_box("parent_injector-2")    # Not asthma medication
+        filler.check_box("parent_injector-2")  # Not asthma medication
 
         # Save with flattening
         output_path = filler.save(output_pdf, flatten=True)
@@ -91,10 +90,7 @@ def fill_from_json():
             "parent_sign_phone": "773-828-9480",
             "parent_sign_date": "2/14/2026",
         },
-        "checkboxes": [
-            "parent_administer-2",
-            "parent_injector-2"
-        ]
+        "checkboxes": ["parent_administer-2", "parent_injector-2"],
     }
 
     # Save config to JSON
@@ -107,9 +103,9 @@ def fill_from_json():
 
 
 if __name__ == "__main__":
-    print("="*60)
+    print("=" * 60)
     print("Medication Form Filling Example")
-    print("="*60)
+    print("=" * 60)
     print()
 
     # Example 1: Direct filling

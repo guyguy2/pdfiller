@@ -13,9 +13,9 @@ from pdfiller import PDFFiller
 
 def example_1_basic():
     """Example 1: Basic form filling"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Example 1: Basic Form Filling")
-    print("="*60)
+    print("=" * 60)
 
     with PDFFiller("sample_form.pdf") as filler:
         # Fill some fields
@@ -34,25 +34,23 @@ def example_1_basic():
 
 def example_2_method_chaining():
     """Example 2: Method chaining for concise code"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Example 2: Method Chaining")
-    print("="*60)
+    print("=" * 60)
 
     with PDFFiller("sample_form.pdf") as filler:
-        filler.fill_field("first_name", "Jane") \
-              .fill_field("last_name", "Smith") \
-              .fill_field("age", "30") \
-              .check_box("newsletter") \
-              .save("chained_form.pdf")
+        filler.fill_field("first_name", "Jane").fill_field("last_name", "Smith").fill_field(
+            "age", "30"
+        ).check_box("newsletter").save("chained_form.pdf")
 
     print("Done: Form filled with method chaining!")
 
 
 def example_3_bulk_filling():
     """Example 3: Fill multiple fields at once"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Example 3: Bulk Field Filling")
-    print("="*60)
+    print("=" * 60)
 
     # Prepare data
     user_data = {
@@ -61,7 +59,7 @@ def example_3_bulk_filling():
         "city": "Springfield",
         "state": "IL",
         "zip": "62701",
-        "phone": "555-0199"
+        "phone": "555-0199",
     }
 
     with PDFFiller("sample_form.pdf") as filler:
@@ -80,9 +78,9 @@ def example_3_bulk_filling():
 
 def example_4_discover_fields():
     """Example 4: Discover what fields are in a PDF"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Example 4: Field Discovery")
-    print("="*60)
+    print("=" * 60)
 
     with PDFFiller("sample_form.pdf") as filler:
         fields = filler.list_fields()
@@ -91,27 +89,23 @@ def example_4_discover_fields():
         for field in fields:
             print(f"  -{field['name']}")
             print(f"    Type: {field['type']}")
-            if field['value']:
+            if field["value"]:
                 print(f"    Current value: {field['value']}")
             print()
 
 
 def example_5_preserve_existing():
     """Example 5: Preserve existing values"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Example 5: Preserve Existing Values")
-    print("="*60)
+    print("=" * 60)
 
     with PDFFiller("partially_filled_form.pdf") as filler:
         # Only fill empty fields
         filler.preserve_existing_fields(True)
 
         # These will only fill if the fields are empty
-        filler.fill_fields({
-            "name": "Bob Smith",
-            "email": "bob@example.com",
-            "city": "Chicago"
-        })
+        filler.fill_fields({"name": "Bob Smith", "email": "bob@example.com", "city": "Chicago"})
 
         filler.save("preserved_form.pdf")
 
@@ -120,9 +114,9 @@ def example_5_preserve_existing():
 
 def example_6_field_validation():
     """Example 6: Validate field names"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Example 6: Field Validation")
-    print("="*60)
+    print("=" * 60)
 
     with PDFFiller("sample_form.pdf") as filler:
         # Check if fields exist
@@ -137,9 +131,9 @@ def example_6_field_validation():
 
 # Run examples
 if __name__ == "__main__":
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("PDFiller Quick Start Examples")
-    print("="*60)
+    print("=" * 60)
 
     print("\nNote: These examples assume you have a 'sample_form.pdf'")
     print("Replace with your actual PDF file path.")

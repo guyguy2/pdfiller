@@ -4,23 +4,23 @@ Test fixtures that generate PDF files with PyMuPDF for testing.
 
 import struct
 import zlib
+from pathlib import Path
 
 import fitz
 import pytest
-from pathlib import Path
 
 
 def _make_png() -> bytes:
     """Create a minimal valid 1x1 PNG image."""
-    sig = b'\x89PNG\r\n\x1a\n'
-    ihdr_data = struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0)
-    ihdr_crc = struct.pack('>I', zlib.crc32(b'IHDR' + ihdr_data) & 0xffffffff)
-    ihdr = struct.pack('>I', 13) + b'IHDR' + ihdr_data + ihdr_crc
-    raw = zlib.compress(b'\x00\x00\x00\x00')
-    idat_crc = struct.pack('>I', zlib.crc32(b'IDAT' + raw) & 0xffffffff)
-    idat = struct.pack('>I', len(raw)) + b'IDAT' + raw + idat_crc
-    iend_crc = struct.pack('>I', zlib.crc32(b'IEND') & 0xffffffff)
-    iend = struct.pack('>I', 0) + b'IEND' + iend_crc
+    sig = b"\x89PNG\r\n\x1a\n"
+    ihdr_data = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+    ihdr_crc = struct.pack(">I", zlib.crc32(b"IHDR" + ihdr_data) & 0xFFFFFFFF)
+    ihdr = struct.pack(">I", 13) + b"IHDR" + ihdr_data + ihdr_crc
+    raw = zlib.compress(b"\x00\x00\x00\x00")
+    idat_crc = struct.pack(">I", zlib.crc32(b"IDAT" + raw) & 0xFFFFFFFF)
+    idat = struct.pack(">I", len(raw)) + b"IDAT" + raw + idat_crc
+    iend_crc = struct.pack(">I", zlib.crc32(b"IEND") & 0xFFFFFFFF)
+    iend = struct.pack(">I", 0) + b"IEND" + iend_crc
     return sig + ihdr + idat + iend
 
 
@@ -46,11 +46,11 @@ def fillable_pdf(tmp_path):
     page = doc.new_page(width=612, height=792)
 
     # Add text fields
-    for i, (name, rect) in enumerate([
+    for name, rect in [
         ("first_name", fitz.Rect(100, 100, 300, 120)),
         ("last_name", fitz.Rect(100, 140, 300, 160)),
         ("email", fitz.Rect(100, 180, 300, 200)),
-    ]):
+    ]:
         widget = fitz.Widget()
         widget.field_type = fitz.PDF_WIDGET_TYPE_TEXT
         widget.field_name = name

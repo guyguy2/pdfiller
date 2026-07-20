@@ -9,12 +9,12 @@ import subprocess
 import sys
 
 
-
 def run_cli(*args, env=None):
     """Run the pdfiller CLI and return the result."""
     run_env = None
     if env:
         import os
+
         run_env = os.environ.copy()
         run_env.update(env)
     result = subprocess.run(
@@ -85,9 +85,13 @@ class TestFillCommand:
     def test_fill_with_field_args(self, fillable_pdf, tmp_path):
         out = tmp_path / "filled.pdf"
         result = run_cli(
-            "fill", "-i", str(fillable_pdf),
-            "-o", str(out),
-            "-f", "first_name=Alice",
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-o",
+            str(out),
+            "-f",
+            "first_name=Alice",
         )
         assert result.returncode == 0
         assert "Done:" in result.stdout
@@ -95,15 +99,23 @@ class TestFillCommand:
 
     def test_fill_from_json(self, fillable_pdf, tmp_path):
         values = tmp_path / "values.json"
-        values.write_text(json.dumps({
-            "fields": {"first_name": "Bob"},
-            "checkboxes": ["agree_terms"],
-        }))
+        values.write_text(
+            json.dumps(
+                {
+                    "fields": {"first_name": "Bob"},
+                    "checkboxes": ["agree_terms"],
+                }
+            )
+        )
         out = tmp_path / "filled.pdf"
         result = run_cli(
-            "fill", "-i", str(fillable_pdf),
-            "-o", str(out),
-            "-j", str(values),
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-o",
+            str(out),
+            "-j",
+            str(values),
         )
         assert result.returncode == 0
         assert out.exists()
@@ -111,9 +123,13 @@ class TestFillCommand:
     def test_fill_bad_field_format(self, fillable_pdf, tmp_path):
         out = tmp_path / "filled.pdf"
         result = run_cli(
-            "fill", "-i", str(fillable_pdf),
-            "-o", str(out),
-            "-f", "no_equals_sign",
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-o",
+            str(out),
+            "-f",
+            "no_equals_sign",
         )
         assert result.returncode != 0
         assert "Invalid field format" in result.stderr
@@ -123,24 +139,34 @@ class TestFillCommand:
         bad_json.write_text("not valid json{{{")
         out = tmp_path / "filled.pdf"
         result = run_cli(
-            "fill", "-i", str(fillable_pdf),
-            "-o", str(out),
-            "-j", str(bad_json),
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-o",
+            str(out),
+            "-j",
+            str(bad_json),
         )
         assert result.returncode != 0
         assert "Invalid JSON" in result.stderr
 
     def test_fill_missing_output(self, fillable_pdf):
         result = run_cli(
-            "fill", "-i", str(fillable_pdf),
-            "-f", "first_name=Test",
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-f",
+            "first_name=Test",
         )
         assert result.returncode != 0
 
     def test_dry_run(self, fillable_pdf):
         result = run_cli(
-            "fill", "-i", str(fillable_pdf),
-            "-f", "first_name=Alice",
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-f",
+            "first_name=Alice",
             "--dry-run",
         )
         assert result.returncode == 0
@@ -150,9 +176,13 @@ class TestFillCommand:
     def test_verbose_shows_fields(self, fillable_pdf, tmp_path):
         out = tmp_path / "filled.pdf"
         result = run_cli(
-            "fill", "-i", str(fillable_pdf),
-            "-o", str(out),
-            "-f", "first_name=Alice",
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-o",
+            str(out),
+            "-f",
+            "first_name=Alice",
             "-v",
         )
         assert result.returncode == 0
@@ -163,9 +193,13 @@ class TestFillCommand:
     def test_verbose_shows_checkboxes(self, fillable_pdf, tmp_path):
         out = tmp_path / "filled.pdf"
         result = run_cli(
-            "fill", "-i", str(fillable_pdf),
-            "-o", str(out),
-            "-c", "agree_terms",
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-o",
+            str(out),
+            "-c",
+            "agree_terms",
             "-v",
         )
         assert result.returncode == 0
@@ -174,9 +208,13 @@ class TestFillCommand:
     def test_verbose_shows_auto_date_note(self, fillable_pdf, tmp_path):
         out = tmp_path / "filled.pdf"
         result = run_cli(
-            "fill", "-i", str(fillable_pdf),
-            "-o", str(out),
-            "-f", "first_name=Alice",
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-o",
+            str(out),
+            "-f",
+            "first_name=Alice",
             "--verbose",
         )
         assert result.returncode == 0
@@ -212,8 +250,16 @@ class TestExportCommand:
     def test_export_to_stdout(self, fillable_pdf, tmp_path):
         # Fill without flattening so fields are preserved
         out = tmp_path / "filled.pdf"
-        run_cli("fill", "-i", str(fillable_pdf), "-o", str(out),
-                "-f", "first_name=Alice", "--no-flatten")
+        run_cli(
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-o",
+            str(out),
+            "-f",
+            "first_name=Alice",
+            "--no-flatten",
+        )
         result = run_cli("export", "-i", str(out))
         assert result.returncode == 0
         data = json.loads(result.stdout)
@@ -221,8 +267,9 @@ class TestExportCommand:
 
     def test_export_to_file(self, fillable_pdf, tmp_path):
         out = tmp_path / "filled.pdf"
-        run_cli("fill", "-i", str(fillable_pdf), "-o", str(out),
-                "-f", "first_name=Bob", "--no-flatten")
+        run_cli(
+            "fill", "-i", str(fillable_pdf), "-o", str(out), "-f", "first_name=Bob", "--no-flatten"
+        )
         export_out = tmp_path / "exported.json"
         result = run_cli("export", "-i", str(out), "-o", str(export_out))
         assert result.returncode == 0
@@ -241,44 +288,52 @@ class TestNestedHelpers:
 
     def test_get_nested_simple(self):
         from pdfiller.cli import _get_nested
+
         data = {"personal": {"first_name": "Guy"}}
         assert _get_nested(data, "personal.first_name") == "Guy"
 
     def test_get_nested_top_level(self):
         from pdfiller.cli import _get_nested
+
         data = {"nickname": "G"}
         assert _get_nested(data, "nickname") == "G"
 
     def test_get_nested_missing(self):
         from pdfiller.cli import _get_nested
+
         data = {"personal": {"first_name": "Guy"}}
         assert _get_nested(data, "personal.email") is None
 
     def test_get_nested_missing_intermediate(self):
         from pdfiller.cli import _get_nested
+
         data = {"personal": {"first_name": "Guy"}}
         assert _get_nested(data, "medical.physician") is None
 
     def test_set_nested_creates_path(self):
         from pdfiller.cli import _set_nested
+
         data = {}
         _set_nested(data, "personal.first_name", "Guy")
         assert data == {"personal": {"first_name": "Guy"}}
 
     def test_set_nested_top_level(self):
         from pdfiller.cli import _set_nested
+
         data = {}
         _set_nested(data, "nickname", "G")
         assert data == {"nickname": "G"}
 
     def test_set_nested_overwrites(self):
         from pdfiller.cli import _set_nested
+
         data = {"personal": {"first_name": "Old"}}
         _set_nested(data, "personal.first_name", "New")
         assert data["personal"]["first_name"] == "New"
 
     def test_remove_nested_existing(self):
         from pdfiller.cli import _remove_nested
+
         data = {"personal": {"first_name": "Guy", "last_name": "Test"}}
         assert _remove_nested(data, "personal.first_name") is True
         assert "first_name" not in data["personal"]
@@ -286,11 +341,13 @@ class TestNestedHelpers:
 
     def test_remove_nested_missing(self):
         from pdfiller.cli import _remove_nested
+
         data = {"personal": {"first_name": "Guy"}}
         assert _remove_nested(data, "personal.email") is False
 
     def test_remove_nested_top_level(self):
         from pdfiller.cli import _remove_nested
+
         data = {"nickname": "G", "other": "val"}
         assert _remove_nested(data, "nickname") is True
         assert "nickname" not in data
@@ -306,10 +363,14 @@ class TestDefaultsShow:
 
     def test_show_existing(self, tmp_path):
         defaults_file = tmp_path / "defaults.json"
-        defaults_file.write_text(json.dumps({
-            "personal": {"first_name": "Guy"},
-            "_meta": {"updated": "2026-01-01T00:00:00"},
-        }))
+        defaults_file.write_text(
+            json.dumps(
+                {
+                    "personal": {"first_name": "Guy"},
+                    "_meta": {"updated": "2026-01-01T00:00:00"},
+                }
+            )
+        )
         env = {"PDFILLER_DEFAULTS": str(defaults_file)}
         result = run_cli("defaults", "show", env=env)
         assert result.returncode == 0
@@ -320,9 +381,13 @@ class TestDefaultsShow:
 class TestDefaultsGet:
     def test_get_nested_value(self, tmp_path):
         defaults_file = tmp_path / "defaults.json"
-        defaults_file.write_text(json.dumps({
-            "personal": {"first_name": "Guy", "phone": ["555-1234", "555-5678"]},
-        }))
+        defaults_file.write_text(
+            json.dumps(
+                {
+                    "personal": {"first_name": "Guy", "phone": ["555-1234", "555-5678"]},
+                }
+            )
+        )
         env = {"PDFILLER_DEFAULTS": str(defaults_file)}
         result = run_cli("defaults", "get", "personal.first_name", env=env)
         assert result.returncode == 0
@@ -330,9 +395,13 @@ class TestDefaultsGet:
 
     def test_get_dict_value(self, tmp_path):
         defaults_file = tmp_path / "defaults.json"
-        defaults_file.write_text(json.dumps({
-            "personal": {"first_name": "Guy", "last_name": "Test"},
-        }))
+        defaults_file.write_text(
+            json.dumps(
+                {
+                    "personal": {"first_name": "Guy", "last_name": "Test"},
+                }
+            )
+        )
         env = {"PDFILLER_DEFAULTS": str(defaults_file)}
         result = run_cli("defaults", "get", "personal", env=env)
         assert result.returncode == 0
@@ -341,9 +410,13 @@ class TestDefaultsGet:
 
     def test_get_list_value(self, tmp_path):
         defaults_file = tmp_path / "defaults.json"
-        defaults_file.write_text(json.dumps({
-            "personal": {"phone": ["555-1234", "555-5678"]},
-        }))
+        defaults_file.write_text(
+            json.dumps(
+                {
+                    "personal": {"phone": ["555-1234", "555-5678"]},
+                }
+            )
+        )
         env = {"PDFILLER_DEFAULTS": str(defaults_file)}
         result = run_cli("defaults", "get", "personal.phone", env=env)
         assert result.returncode == 0
@@ -380,9 +453,13 @@ class TestDefaultsSet:
 
     def test_set_updates_existing(self, tmp_path):
         defaults_file = tmp_path / "defaults.json"
-        defaults_file.write_text(json.dumps({
-            "personal": {"first_name": "Old"},
-        }))
+        defaults_file.write_text(
+            json.dumps(
+                {
+                    "personal": {"first_name": "Old"},
+                }
+            )
+        )
         env = {"PDFILLER_DEFAULTS": str(defaults_file)}
         result = run_cli("defaults", "set", "personal.first_name", "New", env=env)
         assert result.returncode == 0
@@ -409,9 +486,13 @@ class TestDefaultsSet:
 class TestDefaultsRemove:
     def test_remove_existing_key(self, tmp_path):
         defaults_file = tmp_path / "defaults.json"
-        defaults_file.write_text(json.dumps({
-            "personal": {"first_name": "Guy", "last_name": "Test"},
-        }))
+        defaults_file.write_text(
+            json.dumps(
+                {
+                    "personal": {"first_name": "Guy", "last_name": "Test"},
+                }
+            )
+        )
         env = {"PDFILLER_DEFAULTS": str(defaults_file)}
         result = run_cli("defaults", "remove", "personal.first_name", env=env)
         assert result.returncode == 0
@@ -448,13 +529,20 @@ class TestDefaultsNoAction:
 class TestFillWithDefaults:
     def test_fill_uses_defaults(self, fillable_pdf, tmp_path):
         defaults_file = tmp_path / "defaults.json"
-        defaults_file.write_text(json.dumps({
-            "personal": {"first_name": "DefaultGuy", "email": "guy@example.com"},
-        }))
+        defaults_file.write_text(
+            json.dumps(
+                {
+                    "personal": {"first_name": "DefaultGuy", "email": "guy@example.com"},
+                }
+            )
+        )
         env = {"PDFILLER_DEFAULTS": str(defaults_file)}
         result = run_cli(
-            "fill", "-i", str(fillable_pdf),
-            "-d", "--dry-run",
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-d",
+            "--dry-run",
             env=env,
         )
         assert result.returncode == 0
@@ -463,13 +551,21 @@ class TestFillWithDefaults:
 
     def test_fill_field_overrides_default(self, fillable_pdf, tmp_path):
         defaults_file = tmp_path / "defaults.json"
-        defaults_file.write_text(json.dumps({
-            "personal": {"first_name": "DefaultGuy"},
-        }))
+        defaults_file.write_text(
+            json.dumps(
+                {
+                    "personal": {"first_name": "DefaultGuy"},
+                }
+            )
+        )
         env = {"PDFILLER_DEFAULTS": str(defaults_file)}
         result = run_cli(
-            "fill", "-i", str(fillable_pdf),
-            "-d", "-f", "first_name=Override",
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-d",
+            "-f",
+            "first_name=Override",
             "--dry-run",
             env=env,
         )
@@ -479,16 +575,23 @@ class TestFillWithDefaults:
 
     def test_fill_defaults_skips_list_values(self, fillable_pdf, tmp_path):
         defaults_file = tmp_path / "defaults.json"
-        defaults_file.write_text(json.dumps({
-            "personal": {
-                "first_name": "Guy",
-                "email": ["a@example.com", "b@example.com"],
-            },
-        }))
+        defaults_file.write_text(
+            json.dumps(
+                {
+                    "personal": {
+                        "first_name": "Guy",
+                        "email": ["a@example.com", "b@example.com"],
+                    },
+                }
+            )
+        )
         env = {"PDFILLER_DEFAULTS": str(defaults_file)}
         result = run_cli(
-            "fill", "-i", str(fillable_pdf),
-            "-d", "--dry-run",
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-d",
+            "--dry-run",
             env=env,
         )
         assert result.returncode == 0
@@ -503,9 +606,13 @@ class TestBatchCommand:
         csv_file.write_text("first_name,last_name,email\nAlice,Smith,a@x.com\nBob,Jones,b@x.com\n")
         out_dir = tmp_path / "filled"
         result = run_cli(
-            "batch", "-i", str(fillable_pdf),
-            "--csv", str(csv_file),
-            "--output-dir", str(out_dir),
+            "batch",
+            "-i",
+            str(fillable_pdf),
+            "--csv",
+            str(csv_file),
+            "--output-dir",
+            str(out_dir),
         )
         assert result.returncode == 0
         assert "Filled 2 PDFs from data.csv" in result.stdout
@@ -518,9 +625,13 @@ class TestBatchCommand:
         out_dir = tmp_path / "new_dir" / "nested"
         assert not out_dir.exists()
         result = run_cli(
-            "batch", "-i", str(fillable_pdf),
-            "--csv", str(csv_file),
-            "--output-dir", str(out_dir),
+            "batch",
+            "-i",
+            str(fillable_pdf),
+            "--csv",
+            str(csv_file),
+            "--output-dir",
+            str(out_dir),
         )
         assert result.returncode == 0
         assert out_dir.exists()
@@ -531,17 +642,24 @@ class TestBatchCommand:
         csv_file.write_text("first_name\nAlice\n")
         monkeypatch.chdir(tmp_path)
         result = run_cli(
-            "batch", "-i", str(fillable_pdf),
-            "--csv", str(csv_file),
+            "batch",
+            "-i",
+            str(fillable_pdf),
+            "--csv",
+            str(csv_file),
         )
         assert result.returncode == 0
         assert (tmp_path / "fillable_filled_001.pdf").exists()
 
     def test_batch_missing_csv(self, fillable_pdf, tmp_path):
         result = run_cli(
-            "batch", "-i", str(fillable_pdf),
-            "--csv", str(tmp_path / "nope.csv"),
-            "--output-dir", str(tmp_path),
+            "batch",
+            "-i",
+            str(fillable_pdf),
+            "--csv",
+            str(tmp_path / "nope.csv"),
+            "--output-dir",
+            str(tmp_path),
         )
         assert result.returncode != 0
         assert "CSV file not found" in result.stderr
@@ -550,9 +668,13 @@ class TestBatchCommand:
         csv_file = tmp_path / "empty.csv"
         csv_file.write_text("first_name,last_name\n")
         result = run_cli(
-            "batch", "-i", str(fillable_pdf),
-            "--csv", str(csv_file),
-            "--output-dir", str(tmp_path),
+            "batch",
+            "-i",
+            str(fillable_pdf),
+            "--csv",
+            str(csv_file),
+            "--output-dir",
+            str(tmp_path),
         )
         assert result.returncode != 0
         assert "no data rows" in result.stderr
@@ -562,15 +684,20 @@ class TestBatchCommand:
         csv_file.write_text("first_name\nAlice\n")
         out_dir = tmp_path / "filled"
         result = run_cli(
-            "batch", "-i", str(fillable_pdf),
-            "--csv", str(csv_file),
-            "--output-dir", str(out_dir),
+            "batch",
+            "-i",
+            str(fillable_pdf),
+            "--csv",
+            str(csv_file),
+            "--output-dir",
+            str(out_dir),
             "--no-flatten",
         )
         assert result.returncode == 0
         assert (out_dir / "fillable_filled_001.pdf").exists()
         # Verify fields are preserved (not flattened)
         import fitz
+
         doc = fitz.open(str(out_dir / "fillable_filled_001.pdf"))
         page = doc[0]
         has_widgets = any(True for _ in page.widgets())
@@ -588,9 +715,13 @@ class TestBatchCommand:
         blocker.chmod(0o444)
         try:
             result = run_cli(
-                "batch", "-i", str(fillable_pdf),
-                "--csv", str(csv_file),
-                "--output-dir", str(out_dir),
+                "batch",
+                "-i",
+                str(fillable_pdf),
+                "--csv",
+                str(csv_file),
+                "--output-dir",
+                str(out_dir),
             )
             # Row 1 should fail, row 2 should succeed
             assert result.returncode != 0
@@ -606,9 +737,13 @@ class TestBatchCommand:
         csv_file.write_text(rows)
         out_dir = tmp_path / "filled"
         result = run_cli(
-            "batch", "-i", str(fillable_pdf),
-            "--csv", str(csv_file),
-            "--output-dir", str(out_dir),
+            "batch",
+            "-i",
+            str(fillable_pdf),
+            "--csv",
+            str(csv_file),
+            "--output-dir",
+            str(out_dir),
         )
         assert result.returncode == 0
         assert "Filled 11 PDFs" in result.stdout
@@ -621,14 +756,19 @@ class TestBatchCommand:
         csv_file.write_text("first_name,last_name\nAlice,Smith\nBob,Jones\n")
         out_dir = tmp_path / "filled"
         result = run_cli(
-            "batch", "-i", str(fillable_pdf),
-            "--csv", str(csv_file),
-            "--output-dir", str(out_dir),
+            "batch",
+            "-i",
+            str(fillable_pdf),
+            "--csv",
+            str(csv_file),
+            "--output-dir",
+            str(out_dir),
             "--no-flatten",
         )
         assert result.returncode == 0
         # Verify actual field values in the output PDFs
         from pdfiller.core import PDFFiller
+
         with PDFFiller(out_dir / "fillable_filled_001.pdf") as f:
             assert f.get_field_value("first_name") == "Alice"
             assert f.get_field_value("last_name") == "Smith"

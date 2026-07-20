@@ -7,18 +7,21 @@ import logging
 import fitz
 import pytest
 
-from pdfiller.core import PDFFiller, DEFAULT_MAX_PDF_SIZE, DEFAULT_MAX_IMAGE_SIZE
-from pdfiller.exceptions import PDFFillerError, PDFReadError, PDFWriteError, FieldNotFoundError
+from pdfiller.core import DEFAULT_MAX_IMAGE_SIZE, DEFAULT_MAX_PDF_SIZE, PDFFiller
+from pdfiller.exceptions import FieldNotFoundError, PDFFillerError, PDFReadError, PDFWriteError
 
 
 class TestPackageExports:
     def test_read_write_errors_importable_from_package(self):
-        from pdfiller import PDFReadError as ReadErr, PDFWriteError as WriteErr
+        from pdfiller import PDFReadError as ReadErr
+        from pdfiller import PDFWriteError as WriteErr
+
         assert ReadErr is PDFReadError
         assert WriteErr is PDFWriteError
 
     def test_read_write_errors_in_all(self):
         import pdfiller
+
         assert "PDFReadError" in pdfiller.__all__
         assert "PDFWriteError" in pdfiller.__all__
 
@@ -34,7 +37,9 @@ class TestOpenErrors:
         doc.new_page()
         perm = fitz.PDF_PERM_ACCESSIBILITY
         encrypt_meth = fitz.PDF_ENCRYPT_AES_256
-        doc.save(str(path), encryption=encrypt_meth, owner_pw="owner", user_pw="user", permissions=perm)
+        doc.save(
+            str(path), encryption=encrypt_meth, owner_pw="owner", user_pw="user", permissions=perm
+        )
         doc.close()
 
         with pytest.raises(PDFReadError, match="password-protected"):
@@ -102,10 +107,12 @@ class TestMultiPageFillAndSave:
     def test_fill_fields_across_pages(self, multi_page_pdf, tmp_path):
         out = tmp_path / "filled.pdf"
         with PDFFiller(multi_page_pdf) as f:
-            f.fill_fields({
-                "first_name": "Guy",
-                "email": "guy@example.com",
-            })
+            f.fill_fields(
+                {
+                    "first_name": "Guy",
+                    "email": "guy@example.com",
+                }
+            )
             f.save(out, flatten=False)
 
         with PDFFiller(out) as f:
@@ -153,9 +160,8 @@ class TestGetPageLayout:
         assert "x0" in block["bbox"]
 
     def test_invalid_page_raises(self, non_fillable_pdf):
-        with PDFFiller(non_fillable_pdf) as f:
-            with pytest.raises(PDFFillerError):
-                f.get_page_layout(99)
+        with PDFFiller(non_fillable_pdf) as f, pytest.raises(PDFFillerError):
+            f.get_page_layout(99)
 
 
 class TestInsertText:
@@ -222,20 +228,22 @@ class TestInsertImage:
         doc.close()
 
     def test_missing_image_raises(self, non_fillable_pdf):
-        with PDFFiller(non_fillable_pdf) as f:
-            with pytest.raises(PDFFillerError):
-                f.insert_image("/nonexistent/image.png", 0, 0, 100, 100)
+        with PDFFiller(non_fillable_pdf) as f, pytest.raises(PDFFillerError):
+            f.insert_image("/nonexistent/image.png", 0, 0, 100, 100)
 
     def test_invalid_image_format_raises(self, non_fillable_pdf, tmp_path):
         bad_img = tmp_path / "not_an_image.png"
         bad_img.write_text("this is not a PNG")
-        with PDFFiller(non_fillable_pdf) as f:
-            with pytest.raises(PDFFillerError, match="Invalid or unsupported"):
-                f.insert_image(bad_img, 0, 0, 100, 100)
+        with PDFFiller(non_fillable_pdf) as f, pytest.raises(
+            PDFFillerError, match="Invalid or unsupported"
+        ):
+            f.insert_image(bad_img, 0, 0, 100, 100)
 
     def test_chaining(self, non_fillable_pdf, tiny_png):
         with PDFFiller(non_fillable_pdf) as f:
-            result = f.insert_image(tiny_png, 10, 20, 100, 50).insert_image(tiny_png, 30, 40, 120, 70)
+            result = f.insert_image(tiny_png, 10, 20, 100, 50).insert_image(
+                tiny_png, 30, 40, 120, 70
+            )
             assert result is f
             assert len(f._image_overlays) == 2
 
@@ -431,15 +439,13 @@ class TestUncheckBox:
 class TestStrictMode:
     def test_fill_field_nonexistent_raises(self, fillable_pdf):
         """In strict mode, filling a nonexistent field raises FieldNotFoundError."""
-        with PDFFiller(fillable_pdf, strict=True) as f:
-            with pytest.raises(FieldNotFoundError):
-                f.fill_field("nonexistent_field", "value")
+        with PDFFiller(fillable_pdf, strict=True) as f, pytest.raises(FieldNotFoundError):
+            f.fill_field("nonexistent_field", "value")
 
     def test_check_box_nonexistent_raises(self, fillable_pdf):
         """In strict mode, checking a nonexistent checkbox raises FieldNotFoundError."""
-        with PDFFiller(fillable_pdf, strict=True) as f:
-            with pytest.raises(FieldNotFoundError):
-                f.check_box("nonexistent_field")
+        with PDFFiller(fillable_pdf, strict=True) as f, pytest.raises(FieldNotFoundError):
+            f.check_box("nonexistent_field")
 
     def test_fill_field_existing_works(self, fillable_pdf):
         """In strict mode, filling an existing field should work fine."""
@@ -468,16 +474,14 @@ class TestSaveIsTerminal:
 class TestSaveOverInputGuard:
     def test_save_to_input_path_raises(self, fillable_pdf):
         """Saving over the source PDF raises PDFWriteError."""
-        with PDFFiller(fillable_pdf) as f:
-            with pytest.raises(PDFWriteError, match="input"):
-                f.save(fillable_pdf, flatten=False)
+        with PDFFiller(fillable_pdf) as f, pytest.raises(PDFWriteError, match="input"):
+            f.save(fillable_pdf, flatten=False)
 
     def test_save_to_input_path_via_relative_path_raises(self, fillable_pdf, monkeypatch):
         """The guard compares resolved paths, not raw strings."""
         monkeypatch.chdir(fillable_pdf.parent)
-        with PDFFiller(fillable_pdf) as f:
-            with pytest.raises(PDFWriteError, match="input"):
-                f.save(fillable_pdf.name, flatten=False)
+        with PDFFiller(fillable_pdf) as f, pytest.raises(PDFWriteError, match="input"):
+            f.save(fillable_pdf.name, flatten=False)
 
 
 class TestReadOnlyOutputPath:
@@ -490,9 +494,8 @@ class TestReadOnlyOutputPath:
 
         out = readonly_dir / "output.pdf"
         try:
-            with PDFFiller(fillable_pdf) as f:
-                with pytest.raises(PDFWriteError):
-                    f.save(out, flatten=False)
+            with PDFFiller(fillable_pdf) as f, pytest.raises(PDFWriteError):
+                f.save(out, flatten=False)
         finally:
             # Restore permissions so tmp_path cleanup works
             readonly_dir.chmod(0o755)
@@ -551,9 +554,8 @@ class TestEdgeCases:
 class TestFillFieldsStrictMode:
     def test_fill_fields_validates_in_strict_mode(self, fillable_pdf):
         """fill_fields() should validate each field name in strict mode."""
-        with PDFFiller(fillable_pdf, strict=True) as f:
-            with pytest.raises(FieldNotFoundError):
-                f.fill_fields({"nonexistent_field": "value"})
+        with PDFFiller(fillable_pdf, strict=True) as f, pytest.raises(FieldNotFoundError):
+            f.fill_fields({"nonexistent_field": "value"})
 
     def test_fill_fields_works_in_strict_mode(self, fillable_pdf):
         """fill_fields() should work for valid fields in strict mode."""
@@ -566,19 +568,16 @@ class TestFillFieldsStrictMode:
 
 class TestPageBoundsValidation:
     def test_insert_text_invalid_page_raises(self, non_fillable_pdf):
-        with PDFFiller(non_fillable_pdf) as f:
-            with pytest.raises(PDFFillerError, match="out of range"):
-                f.insert_text("Hello", 100, 200, page_num=5)
+        with PDFFiller(non_fillable_pdf) as f, pytest.raises(PDFFillerError, match="out of range"):
+            f.insert_text("Hello", 100, 200, page_num=5)
 
     def test_insert_text_box_invalid_page_raises(self, non_fillable_pdf):
-        with PDFFiller(non_fillable_pdf) as f:
-            with pytest.raises(PDFFillerError, match="out of range"):
-                f.insert_text_box("Hello", 100, 200, 300, 250, page_num=5)
+        with PDFFiller(non_fillable_pdf) as f, pytest.raises(PDFFillerError, match="out of range"):
+            f.insert_text_box("Hello", 100, 200, 300, 250, page_num=5)
 
     def test_insert_image_invalid_page_raises(self, non_fillable_pdf, tiny_png):
-        with PDFFiller(non_fillable_pdf) as f:
-            with pytest.raises(PDFFillerError, match="out of range"):
-                f.insert_image(tiny_png, 100, 200, 300, 250, page_num=5)
+        with PDFFiller(non_fillable_pdf) as f, pytest.raises(PDFFillerError, match="out of range"):
+            f.insert_image(tiny_png, 100, 200, 300, 250, page_num=5)
 
 
 class TestPendingOperations:
@@ -604,6 +603,7 @@ class TestPendingOperations:
 # 1. Size/resource limits
 # ---------------------------------------------------------------------------
 
+
 class TestPDFSizeLimit:
     def test_exceeds_max_pdf_size_raises(self, large_pdf):
         """Opening a PDF that exceeds max_pdf_size raises PDFFillerError."""
@@ -626,18 +626,20 @@ class TestPDFSizeLimit:
         file_size = large_pdf.stat().st_size
         # Set limit to just above file_size so it passes, but file is >50%
         limit = file_size + 100
-        with caplog.at_level(logging.WARNING, logger="pdfiller.core"):
-            with PDFFiller(large_pdf, max_pdf_size=limit) as f:
-                assert f.page_count == 1
+        with caplog.at_level(logging.WARNING, logger="pdfiller.core"), PDFFiller(
+            large_pdf, max_pdf_size=limit
+        ) as f:
+            assert f.page_count == 1
         assert "over 50%" in caplog.text
 
     def test_no_warning_below_50_percent(self, large_pdf, caplog):
         """A PDF well below 50% of the limit should not log a warning."""
         file_size = large_pdf.stat().st_size
         limit = file_size * 10  # 10x the size, so well under 50%
-        with caplog.at_level(logging.WARNING, logger="pdfiller.core"):
-            with PDFFiller(large_pdf, max_pdf_size=limit) as f:
-                assert f.page_count == 1
+        with caplog.at_level(logging.WARNING, logger="pdfiller.core"), PDFFiller(
+            large_pdf, max_pdf_size=limit
+        ) as f:
+            assert f.page_count == 1
         assert "over 50%" not in caplog.text
 
     def test_default_max_pdf_size(self):
@@ -648,9 +650,10 @@ class TestPDFSizeLimit:
 class TestImageSizeLimit:
     def test_exceeds_max_image_size_raises(self, non_fillable_pdf, tiny_png):
         """Inserting an image that exceeds max_image_size raises PDFFillerError."""
-        with PDFFiller(non_fillable_pdf, max_image_size=1) as f:
-            with pytest.raises(PDFFillerError, match="exceeds maximum"):
-                f.insert_image(tiny_png, 100, 200, 300, 250)
+        with PDFFiller(non_fillable_pdf, max_image_size=1) as f, pytest.raises(
+            PDFFillerError, match="exceeds maximum"
+        ):
+            f.insert_image(tiny_png, 100, 200, 300, 250)
 
     def test_within_max_image_size_works(self, non_fillable_pdf, tiny_png):
         """An image within the size limit inserts normally."""
@@ -668,9 +671,10 @@ class TestImageSizeLimit:
         """An image over 50% of the limit should log a warning."""
         img_size = tiny_png.stat().st_size
         limit = img_size + 10  # just above file_size so >50%
-        with caplog.at_level(logging.WARNING, logger="pdfiller.core"):
-            with PDFFiller(non_fillable_pdf, max_image_size=limit) as f:
-                f.insert_image(tiny_png, 100, 200, 300, 250)
+        with caplog.at_level(logging.WARNING, logger="pdfiller.core"), PDFFiller(
+            non_fillable_pdf, max_image_size=limit
+        ) as f:
+            f.insert_image(tiny_png, 100, 200, 300, 250)
         assert "over 50%" in caplog.text
 
     def test_default_max_image_size(self):
@@ -681,6 +685,7 @@ class TestImageSizeLimit:
 # ---------------------------------------------------------------------------
 # 2. Auto-detect fillable vs non-fillable routing
 # ---------------------------------------------------------------------------
+
 
 class TestFillMethod:
     def test_fillable_pdf_routes_to_fill_fields(self, fillable_pdf, tmp_path):
@@ -701,10 +706,12 @@ class TestFillMethod:
         """fill() on a non-fillable PDF should insert text at coordinates."""
         out = tmp_path / "filled.pdf"
         with PDFFiller(non_fillable_pdf) as f:
-            f.fill({
-                "Name": {"text": "Jane Doe", "x": 200, "y": 150, "page": 0},
-                "Date": {"text": "3/15/2026", "x": 200, "y": 200},
-            })
+            f.fill(
+                {
+                    "Name": {"text": "Jane Doe", "x": 200, "y": 150, "page": 0},
+                    "Date": {"text": "3/15/2026", "x": 200, "y": 200},
+                }
+            )
             assert len(f._text_overlays) == 2
             f.save(out, flatten=False)
 
@@ -716,15 +723,17 @@ class TestFillMethod:
 
     def test_non_fillable_missing_text_key_raises(self, non_fillable_pdf):
         """fill() on non-fillable PDF with bad data format raises PDFFillerError."""
-        with PDFFiller(non_fillable_pdf) as f:
-            with pytest.raises(PDFFillerError, match="coordinate-based"):
-                f.fill({"Name": "plain string"})
+        with PDFFiller(non_fillable_pdf) as f, pytest.raises(
+            PDFFillerError, match="coordinate-based"
+        ):
+            f.fill({"Name": "plain string"})
 
     def test_non_fillable_missing_text_in_dict_raises(self, non_fillable_pdf):
         """fill() on non-fillable PDF with dict missing 'text' raises PDFFillerError."""
-        with PDFFiller(non_fillable_pdf) as f:
-            with pytest.raises(PDFFillerError, match="coordinate-based"):
-                f.fill({"Name": {"x": 100, "y": 200}})
+        with PDFFiller(non_fillable_pdf) as f, pytest.raises(
+            PDFFillerError, match="coordinate-based"
+        ):
+            f.fill({"Name": {"x": 100, "y": 200}})
 
     def test_fill_returns_self(self, fillable_pdf):
         """fill() returns self for method chaining."""
@@ -736,15 +745,17 @@ class TestFillMethod:
         """fill() on non-fillable PDF respects optional params like font_size."""
         out = tmp_path / "styled.pdf"
         with PDFFiller(non_fillable_pdf) as f:
-            f.fill({
-                "Title": {
-                    "text": "Big Title",
-                    "x": 100,
-                    "y": 100,
-                    "font_size": 24,
-                    "font_name": "helv",
-                },
-            })
+            f.fill(
+                {
+                    "Title": {
+                        "text": "Big Title",
+                        "x": 100,
+                        "y": 100,
+                        "font_size": 24,
+                        "font_name": "helv",
+                    },
+                }
+            )
             assert f._text_overlays[0]["font_size"] == 24
             f.save(out, flatten=False)
 
@@ -752,6 +763,7 @@ class TestFillMethod:
 # ---------------------------------------------------------------------------
 # 3. Radio button and dropdown support
 # ---------------------------------------------------------------------------
+
 
 class TestDropdownFields:
     def test_list_fields_includes_options(self, fillable_pdf_with_dropdown):

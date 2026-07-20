@@ -8,11 +8,11 @@ import io
 import json
 import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 from .core import PDFFiller
 from .exceptions import PDFFillerError
-from .memory import load_defaults, save_defaults, flatten_defaults, match_field_to_defaults
+from .memory import flatten_defaults, load_defaults, match_field_to_defaults, save_defaults
 
 # Field types treated as checkboxes (toggled, not assigned a text value)
 _CHECKBOX_FIELD_TYPES = ("CheckBox", "Button")
@@ -38,7 +38,7 @@ def _format_fields_table(fields, input_path: str) -> str:
     for field in fields:
         lines.append(f"  - {field['name']}")
         lines.append(f"    Type: {field['type']}")
-        if field['value']:
+        if field["value"]:
             lines.append(f"    Current value: {field['value']}")
         lines.append("")
     return "\n".join(lines)
@@ -55,12 +55,14 @@ def _format_fields_csv(fields) -> str:
     writer = csv.writer(buf)
     writer.writerow(["name", "type", "value", "page"])
     for field in fields:
-        writer.writerow([
-            field['name'],
-            field['type'],
-            field.get('value', ''),
-            field.get('page', ''),
-        ])
+        writer.writerow(
+            [
+                field["name"],
+                field["type"],
+                field.get("value", ""),
+                field.get("page", ""),
+            ]
+        )
     return buf.getvalue()
 
 
@@ -70,21 +72,21 @@ def list_fields_command(args):
         with PDFFiller(args.input) as filler:
             fields = filler.list_fields()
 
-            fmt = getattr(args, 'format', None) or 'table'
+            fmt = getattr(args, "format", None) or "table"
 
-            if fmt == 'json':
+            if fmt == "json":
                 output = _format_fields_json(fields)
-            elif fmt == 'csv':
+            elif fmt == "csv":
                 output = _format_fields_csv(fields)
             else:
                 output = _format_fields_table(fields, args.input)
 
             if args.output:
-                with open(args.output, 'w') as f:
+                with open(args.output, "w") as f:
                     f.write(output)
                 print(f"Saved: {args.output}")
             else:
-                print(output, end='' if fmt == 'csv' else '\n')
+                print(output, end="" if fmt == "csv" else "\n")
 
     except PDFFillerError as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -97,9 +99,8 @@ def fill_command(args):
         print("Error: -o/--output is required unless --dry-run is used", file=sys.stderr)
         sys.exit(1)
     try:
-        auto_dates = not getattr(args, 'no_auto_dates', False)
+        auto_dates = not getattr(args, "no_auto_dates", False)
         with PDFFiller(args.input, auto_fill_dates=auto_dates) as filler:
-
             # Set preserve mode
             filler.preserve_existing_fields(args.preserve_existing)
 
@@ -109,7 +110,7 @@ def fill_command(args):
                 if defaults_data:
                     pdf_fields = filler.list_fields()
                     for field in pdf_fields:
-                        name = field['name']
+                        name = field["name"]
                         match = match_field_to_defaults(name, defaults_data)
                         if isinstance(match, str):
                             filler.fill_field(name, match)
@@ -120,8 +121,8 @@ def fill_command(args):
                 data = load_values_from_json(args.values_json)
 
                 # Separate text fields and checkboxes
-                text_fields = data.get('fields', {})
-                checkboxes = data.get('checkboxes', [])
+                text_fields = data.get("fields", {})
+                checkboxes = data.get("checkboxes", [])
 
                 # Fill text fields
                 filler.fill_fields(text_fields)
@@ -133,10 +134,13 @@ def fill_command(args):
             # Override with command-line field arguments
             if args.field:
                 for field_spec in args.field:
-                    if '=' not in field_spec:
-                        print(f"Error: Invalid field format '{field_spec}', expected name=value", file=sys.stderr)
+                    if "=" not in field_spec:
+                        print(
+                            f"Error: Invalid field format '{field_spec}', expected name=value",
+                            file=sys.stderr,
+                        )
                         sys.exit(1)
-                    name, value = field_spec.split('=', 1)
+                    name, value = field_spec.split("=", 1)
                     filler.fill_field(name, value)
 
             # Check command-line checkbox arguments
@@ -148,7 +152,7 @@ def fill_command(args):
             if args.validate:
                 all_fields = list(text_fields.keys()) if args.values_json else []
                 if args.field:
-                    all_fields.extend([f.split('=')[0] for f in args.field])
+                    all_fields.extend([f.split("=")[0] for f in args.field])
 
                 if all_fields:
                     results = filler.validate_fields(all_fields)
@@ -175,7 +179,7 @@ def fill_command(args):
                 return
 
             # Verbose output before save
-            verbose = getattr(args, 'verbose', False)
+            verbose = getattr(args, "verbose", False)
             if verbose:
                 print(f"Fill plan for {args.input}:")
 
@@ -195,8 +199,9 @@ def fill_command(args):
                 if args.preserve_existing:
                     existing_fields = filler.list_fields()
                     skipped = [
-                        f['name'] for f in existing_fields
-                        if f['value'] and f['name'] in ops["fields"]
+                        f["name"]
+                        for f in existing_fields
+                        if f["value"] and f["name"] in ops["fields"]
                     ]
                     if skipped:
                         print("  Skipped (preserve existing):")
@@ -219,13 +224,16 @@ def inspect_command(args):
             for page_num in range(filler.page_count):
                 layout = filler.get_page_layout(page_num)
                 print(f"Page {page_num}: {layout['width']:.0f}x{layout['height']:.0f}")
-                for block in layout['blocks']:
-                    bbox = block['bbox']
-                    text = block['text'].replace('\n', ' ')
+                for block in layout["blocks"]:
+                    bbox = block["bbox"]
+                    text = block["text"].replace("\n", " ")
                     if len(text) > 80:
                         text = text[:77] + "..."
-                    print(f"  [{bbox['x0']:.0f},{bbox['y0']:.0f} - {bbox['x1']:.0f},{bbox['y1']:.0f}] {text}")
-                if not layout['blocks']:
+                    coords = (
+                        f"[{bbox['x0']:.0f},{bbox['y0']:.0f} - {bbox['x1']:.0f},{bbox['y1']:.0f}]"
+                    )
+                    print(f"  {coords} {text}")
+                if not layout["blocks"]:
                     print("  (no text blocks)")
 
     except PDFFillerError as e:
@@ -355,7 +363,7 @@ def batch_command(args):
     stem = input_path.stem
 
     try:
-        with open(csv_path, newline='') as f:
+        with open(csv_path, newline="") as f:
             reader = csv.DictReader(f)
             rows = list(reader)
     except Exception as e:
@@ -402,26 +410,26 @@ def template_command(args):
             fields = filler.list_fields()
 
             # Create template structure
-            template = {
-                "fields": {},
-                "checkboxes": []
-            }
+            template = {"fields": {}, "checkboxes": []}
 
             for field in fields:
-                field_name = field['name']
-                field_type = field['type']
+                field_name = field["name"]
+                field_type = field["type"]
 
                 if field_type in _CHECKBOX_FIELD_TYPES:
-                    template['checkboxes'].append(field_name)
+                    template["checkboxes"].append(field_name)
                 else:
-                    template['fields'][field_name] = ""
+                    template["fields"][field_name] = ""
 
             # Save template
-            with open(args.output, 'w') as f:
+            with open(args.output, "w") as f:
                 json.dump(template, f, indent=2)
 
             print(f"Saved: {args.output}")
-            print(f"  Edit this file and use with: pdfiller fill -i {args.input} -j {args.output} -o output.pdf")
+            print(
+                f"  Edit this file and use with: "
+                f"pdfiller fill -i {args.input} -j {args.output} -o output.pdf"
+            )
 
     except PDFFillerError as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -449,79 +457,110 @@ Examples:
 
   # Batch fill from CSV (one PDF per row)
   pdfiller batch -i form.pdf --csv data.csv --output-dir ./filled/
-        """
+        """,
     )
 
-    subparsers = parser.add_subparsers(dest='command', help='Command to execute')
+    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
 
     # List command
-    list_parser = subparsers.add_parser('list', help='List all fields in a PDF')
-    list_parser.add_argument('-i', '--input', required=True, help='Input PDF file')
-    list_parser.add_argument('-o', '--output', help='Save output to file (optional)')
-    list_parser.add_argument('--format', choices=['table', 'json', 'csv'], default='table',
-                             help='Output format (default: table)')
+    list_parser = subparsers.add_parser("list", help="List all fields in a PDF")
+    list_parser.add_argument("-i", "--input", required=True, help="Input PDF file")
+    list_parser.add_argument("-o", "--output", help="Save output to file (optional)")
+    list_parser.add_argument(
+        "--format",
+        choices=["table", "json", "csv"],
+        default="table",
+        help="Output format (default: table)",
+    )
 
     # Fill command
-    fill_parser = subparsers.add_parser('fill', help='Fill PDF form fields')
-    fill_parser.add_argument('-i', '--input', required=True, help='Input PDF file')
-    fill_parser.add_argument('-o', '--output', help='Output PDF file (required unless --dry-run)')
-    fill_parser.add_argument('-j', '--values-json', help='JSON file with field values')
-    fill_parser.add_argument('-f', '--field', action='append', help='Field to fill (name=value)')
-    fill_parser.add_argument('-c', '--checkbox', action='append', help='Checkbox to check')
-    fill_parser.add_argument('--no-flatten', dest='flatten', action='store_false',
-                             help='Do not flatten the PDF (not recommended)')
-    fill_parser.add_argument('--preserve-existing', action='store_true',
-                             help='Preserve existing field values')
-    fill_parser.add_argument('--validate', action='store_true',
-                             help='Validate field names before filling')
-    fill_parser.add_argument('--dry-run', action='store_true',
-                             help='Show what would be filled without saving')
-    fill_parser.add_argument('-v', '--verbose', action='store_true',
-                             help='Print detailed info about fields being filled')
-    fill_parser.add_argument('--no-auto-dates', action='store_true',
-                             help='Disable automatic date filling for empty date fields')
-    fill_parser.add_argument('-d', '--use-defaults', action='store_true',
-                             help='Auto-fill fields from stored defaults')
+    fill_parser = subparsers.add_parser("fill", help="Fill PDF form fields")
+    fill_parser.add_argument("-i", "--input", required=True, help="Input PDF file")
+    fill_parser.add_argument("-o", "--output", help="Output PDF file (required unless --dry-run)")
+    fill_parser.add_argument("-j", "--values-json", help="JSON file with field values")
+    fill_parser.add_argument("-f", "--field", action="append", help="Field to fill (name=value)")
+    fill_parser.add_argument("-c", "--checkbox", action="append", help="Checkbox to check")
+    fill_parser.add_argument(
+        "--no-flatten",
+        dest="flatten",
+        action="store_false",
+        help="Do not flatten the PDF (not recommended)",
+    )
+    fill_parser.add_argument(
+        "--preserve-existing", action="store_true", help="Preserve existing field values"
+    )
+    fill_parser.add_argument(
+        "--validate", action="store_true", help="Validate field names before filling"
+    )
+    fill_parser.add_argument(
+        "--dry-run", action="store_true", help="Show what would be filled without saving"
+    )
+    fill_parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Print detailed info about fields being filled"
+    )
+    fill_parser.add_argument(
+        "--no-auto-dates",
+        action="store_true",
+        help="Disable automatic date filling for empty date fields",
+    )
+    fill_parser.add_argument(
+        "-d", "--use-defaults", action="store_true", help="Auto-fill fields from stored defaults"
+    )
 
     # Batch command
-    batch_parser = subparsers.add_parser('batch', help='Fill a PDF for each row in a CSV file')
-    batch_parser.add_argument('-i', '--input', required=True, help='Input PDF file')
-    batch_parser.add_argument('--csv', required=True, help='CSV file with field values (header = field names)')
-    batch_parser.add_argument('--output-dir', default='.', help='Output directory (default: current directory)')
-    batch_parser.add_argument('--no-flatten', dest='flatten', action='store_false',
-                              help='Do not flatten the PDFs (not recommended)')
-    batch_parser.add_argument('--no-auto-dates', action='store_true',
-                              help='Disable automatic date filling for empty date fields')
+    batch_parser = subparsers.add_parser("batch", help="Fill a PDF for each row in a CSV file")
+    batch_parser.add_argument("-i", "--input", required=True, help="Input PDF file")
+    batch_parser.add_argument(
+        "--csv", required=True, help="CSV file with field values (header = field names)"
+    )
+    batch_parser.add_argument(
+        "--output-dir", default=".", help="Output directory (default: current directory)"
+    )
+    batch_parser.add_argument(
+        "--no-flatten",
+        dest="flatten",
+        action="store_false",
+        help="Do not flatten the PDFs (not recommended)",
+    )
+    batch_parser.add_argument(
+        "--no-auto-dates",
+        action="store_true",
+        help="Disable automatic date filling for empty date fields",
+    )
 
     # Inspect command
-    inspect_parser = subparsers.add_parser('inspect', help='Inspect text layout of a non-fillable PDF')
-    inspect_parser.add_argument('-i', '--input', required=True, help='Input PDF file')
+    inspect_parser = subparsers.add_parser(
+        "inspect", help="Inspect text layout of a non-fillable PDF"
+    )
+    inspect_parser.add_argument("-i", "--input", required=True, help="Input PDF file")
 
     # Export command
-    export_parser = subparsers.add_parser('export', help='Extract field values from a filled PDF')
-    export_parser.add_argument('-i', '--input', required=True, help='Input PDF file')
-    export_parser.add_argument('-o', '--output', help='Output JSON file (prints to stdout if omitted)')
+    export_parser = subparsers.add_parser("export", help="Extract field values from a filled PDF")
+    export_parser.add_argument("-i", "--input", required=True, help="Input PDF file")
+    export_parser.add_argument(
+        "-o", "--output", help="Output JSON file (prints to stdout if omitted)"
+    )
 
     # Template command
-    template_parser = subparsers.add_parser('template', help='Generate template JSON for a PDF')
-    template_parser.add_argument('-i', '--input', required=True, help='Input PDF file')
-    template_parser.add_argument('-o', '--output', required=True, help='Output JSON template file')
+    template_parser = subparsers.add_parser("template", help="Generate template JSON for a PDF")
+    template_parser.add_argument("-i", "--input", required=True, help="Input PDF file")
+    template_parser.add_argument("-o", "--output", required=True, help="Output JSON template file")
 
     # Defaults command
-    defaults_parser = subparsers.add_parser('defaults', help='Manage stored defaults')
-    defaults_sub = defaults_parser.add_subparsers(dest='defaults_action', help='Defaults action')
+    defaults_parser = subparsers.add_parser("defaults", help="Manage stored defaults")
+    defaults_sub = defaults_parser.add_subparsers(dest="defaults_action", help="Defaults action")
 
-    defaults_sub.add_parser('show', help='Display current defaults')
+    defaults_sub.add_parser("show", help="Display current defaults")
 
-    get_parser = defaults_sub.add_parser('get', help='Get a specific default value')
-    get_parser.add_argument('key', help='Key in dot notation (e.g., personal.phone)')
+    get_parser = defaults_sub.add_parser("get", help="Get a specific default value")
+    get_parser.add_argument("key", help="Key in dot notation (e.g., personal.phone)")
 
-    set_parser = defaults_sub.add_parser('set', help='Set a default value')
-    set_parser.add_argument('key', help='Key in dot notation (e.g., personal.phone)')
-    set_parser.add_argument('value', help='Value to store')
+    set_parser = defaults_sub.add_parser("set", help="Set a default value")
+    set_parser.add_argument("key", help="Key in dot notation (e.g., personal.phone)")
+    set_parser.add_argument("value", help="Value to store")
 
-    remove_parser = defaults_sub.add_parser('remove', help='Remove a default value')
-    remove_parser.add_argument('key', help='Key in dot notation (e.g., personal.phone)')
+    remove_parser = defaults_sub.add_parser("remove", help="Remove a default value")
+    remove_parser.add_argument("key", help="Key in dot notation (e.g., personal.phone)")
 
     args = parser.parse_args()
 
@@ -530,24 +569,24 @@ Examples:
         sys.exit(1)
 
     # Execute command
-    if args.command == 'list':
+    if args.command == "list":
         list_fields_command(args)
-    elif args.command == 'fill':
+    elif args.command == "fill":
         fill_command(args)
-    elif args.command == 'batch':
+    elif args.command == "batch":
         batch_command(args)
-    elif args.command == 'inspect':
+    elif args.command == "inspect":
         inspect_command(args)
-    elif args.command == 'export':
+    elif args.command == "export":
         export_command(args)
-    elif args.command == 'template':
+    elif args.command == "template":
         template_command(args)
-    elif args.command == 'defaults':
+    elif args.command == "defaults":
         if not args.defaults_action:
             defaults_parser.print_help()
             sys.exit(1)
         defaults_command(args)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
