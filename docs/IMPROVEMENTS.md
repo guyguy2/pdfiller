@@ -47,16 +47,6 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 ## 5. Packaging, Tooling, and Tests
 
-- **P5. Python 3.8 is EOL** (M)
-  3.8 (EOL Oct 2024) forces `Optional[X]`/`Dict` syntax and blocks modern PyMuPDF.
-  *Fix:* bump `requires-python` to >=3.9 (or 3.10); modernize annotations opportunistically; CHANGELOG entry.
-  *Verify:* classifiers match.
-
-- **P6. Legacy `fitz` import** (S)
-  Canonical import is now `import pymupdf`; `import fitz` is the deprecated alias.
-  *Fix:* switch when bumping the PyMuPDF floor (pair with P5).
-  *Verify:* no `import fitz` remains; tests pass.
-
 - **P8. Example PDFs may contain real data** (S) - partially done 2026-07-20
   Inspection confirmed `examples/680-001_AB_filled.pdf` contains real PII (names, DOB, phone). Neither PDF was ever committed, so no history scrub is needed. `examples/*_filled.pdf` is now in .gitignore.
   *Remaining:* decide fate of the blank `examples/680-001_AB.pdf` (real-world form, still untracked) - replace with a sanitized demo form or drop it.
@@ -105,6 +95,7 @@ From this improvement plan (completed 2026-07-20, unreleased):
 - **P7** - Added `pytest-cov` to the dev group; `uv run pytest --cov=pdfiller` reports coverage (currently ~90%)
 - **U7** - Configurable auto-date format: `date_format` strftime param on `PDFFiller`, `--date-format` flag on `fill`/`batch`, and `_meta.date_format` defaults key; precedence is flag > `_meta.date_format` > default M/D/YYYY
 - **U8** - Encrypted PDFs now try an empty user password automatically and accept a `password` param (`--password` on all PDF-opening commands); wrong/missing password still raises `PDFReadError`
+- **P5+P6** - Bumped `requires-python` to >=3.9 (dropped EOL 3.8 classifier, ruff target py39), modernized annotations to built-in generics, and switched `import fitz` to the canonical `import pymupdf` throughout source and tests
 
 From this improvement plan (completed 2026-07-20, released as 1.2.0):
 

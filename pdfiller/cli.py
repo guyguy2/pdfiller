@@ -10,7 +10,7 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from .core import PDFFiller
 from .exceptions import PDFFillerError
@@ -25,7 +25,7 @@ _OVERLAY_REQUIRED_KEYS = {
 }
 
 
-def load_values_from_json(json_path: Path) -> Dict[str, Any]:
+def load_values_from_json(json_path: Path) -> dict[str, Any]:
     """Load field values from JSON file"""
     try:
         with open(json_path) as f:
@@ -39,7 +39,7 @@ def load_values_from_json(json_path: Path) -> Dict[str, Any]:
     return data
 
 
-def _queue_overlays(filler: PDFFiller, data: Dict[str, Any]) -> int:
+def _queue_overlays(filler: PDFFiller, data: dict[str, Any]) -> int:
     """Queue text/box/image overlays from the fill JSON spec.
 
     Returns the number of overlays queued. Exits with an error message if an
@@ -109,7 +109,7 @@ def _redact_value(value: Any) -> str:
     return f"[redacted, {len(str(value))} chars]"
 
 
-def _describe_overlays(data: Dict[str, Any], redact: bool = False) -> list:
+def _describe_overlays(data: dict[str, Any], redact: bool = False) -> list:
     """Human-readable one-line descriptions of overlay entries for dry-run/verbose."""
     lines = []
     for entry in data.get("texts", []):
@@ -433,7 +433,7 @@ def export_command(args):
         sys.exit(1)
 
 
-def _get_nested(data: Dict[str, Any], key: str) -> Any:
+def _get_nested(data: dict[str, Any], key: str) -> Any:
     """Get a value from a nested dict using dot notation (e.g., 'personal.phone')."""
     parts = key.split(".")
     current = data
@@ -444,7 +444,7 @@ def _get_nested(data: Dict[str, Any], key: str) -> Any:
     return current
 
 
-def _set_nested(data: Dict[str, Any], key: str, value: str) -> None:
+def _set_nested(data: dict[str, Any], key: str, value: str) -> None:
     """Set a value in a nested dict using dot notation (e.g., 'personal.phone')."""
     parts = key.split(".")
     current = data
@@ -453,7 +453,7 @@ def _set_nested(data: Dict[str, Any], key: str, value: str) -> None:
     current[parts[-1]] = value
 
 
-def _add_nested(data: Dict[str, Any], key: str, value: str) -> None:
+def _add_nested(data: dict[str, Any], key: str, value: str) -> None:
     """Append a value to a list in a nested dict using dot notation.
 
     Creates a one-element list if the key is absent. Promotes an existing
@@ -478,7 +478,7 @@ def _add_nested(data: Dict[str, Any], key: str, value: str) -> None:
         )
 
 
-def _remove_nested(data: Dict[str, Any], key: str) -> bool:
+def _remove_nested(data: dict[str, Any], key: str) -> bool:
     """Remove a value from a nested dict using dot notation. Returns True if removed."""
     parts = key.split(".")
     current = data
@@ -575,7 +575,7 @@ def _batch_output_path(
     return output_dir / name
 
 
-def _parse_field_maps(map_args) -> Dict[str, str]:
+def _parse_field_maps(map_args) -> dict[str, str]:
     """Parse --map field=column arguments into a {field: column} dict."""
     maps = {}
     for spec in map_args or []:

@@ -193,7 +193,7 @@ class TestFillCommand:
     def test_date_format_flag_produces_iso_dates(self, fillable_pdf_with_dates, tmp_path):
         import datetime
 
-        import fitz
+        import pymupdf
 
         out = tmp_path / "iso.pdf"
         result = run_cli(
@@ -207,7 +207,7 @@ class TestFillCommand:
             "%Y-%m-%d",
         )
         assert result.returncode == 0
-        doc = fitz.open(str(out))
+        doc = pymupdf.open(str(out))
         values = {w.field_name: w.field_value for page in doc for w in page.widgets()}
         doc.close()
         assert values["sign_date"] == datetime.date.today().strftime("%Y-%m-%d")
@@ -215,7 +215,7 @@ class TestFillCommand:
     def test_meta_date_format_used_when_no_flag(self, fillable_pdf_with_dates, tmp_path):
         import datetime
 
-        import fitz
+        import pymupdf
 
         defaults_file = tmp_path / "defaults.json"
         defaults_file.write_text(json.dumps({"_meta": {"date_format": "%Y-%m-%d"}}))
@@ -231,7 +231,7 @@ class TestFillCommand:
             env=env,
         )
         assert result.returncode == 0
-        doc = fitz.open(str(out))
+        doc = pymupdf.open(str(out))
         values = {w.field_name: w.field_value for page in doc for w in page.widgets()}
         doc.close()
         assert values["sign_date"] == datetime.date.today().strftime("%Y-%m-%d")
@@ -400,7 +400,7 @@ class TestFillOverlays:
         return json_file
 
     def test_overlays_on_non_fillable_pdf(self, non_fillable_pdf, tiny_png, tmp_path):
-        import fitz
+        import pymupdf
 
         out = tmp_path / "filled.pdf"
         spec = {
@@ -428,7 +428,7 @@ class TestFillOverlays:
         assert result.returncode == 0, result.stderr
         assert "3 overlays" in result.stdout
 
-        doc = fitz.open(str(out))
+        doc = pymupdf.open(str(out))
         text = doc[0].get_text()
         images = doc[0].get_images()
         doc.close()
@@ -482,7 +482,7 @@ class TestFillOverlays:
         assert "out of range" in result.stderr
 
     def test_overlays_combine_with_fields(self, fillable_pdf, tmp_path):
-        import fitz
+        import pymupdf
 
         out = tmp_path / "filled.pdf"
         spec = {
@@ -502,7 +502,7 @@ class TestFillOverlays:
         assert "1 fields" in result.stdout
         assert "1 overlays" in result.stdout
 
-        doc = fitz.open(str(out))
+        doc = pymupdf.open(str(out))
         text = doc[0].get_text()
         doc.close()
         assert "Alice" in text
@@ -1090,9 +1090,9 @@ class TestBatchCommand:
         assert result.returncode == 0
         assert (out_dir / "fillable_filled_001.pdf").exists()
         # Verify fields are preserved (not flattened)
-        import fitz
+        import pymupdf
 
-        doc = fitz.open(str(out_dir / "fillable_filled_001.pdf"))
+        doc = pymupdf.open(str(out_dir / "fillable_filled_001.pdf"))
         page = doc[0]
         has_widgets = any(True for _ in page.widgets())
         doc.close()

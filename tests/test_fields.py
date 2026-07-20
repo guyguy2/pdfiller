@@ -2,7 +2,7 @@
 Tests for pdfiller.fields type predicates.
 """
 
-import fitz
+import pymupdf
 
 from pdfiller.fields import (
     is_checkbox,
@@ -20,19 +20,19 @@ class _FakeWidget:
 class TestWidgetPredicates:
     def test_is_choice_widget_true_for_choice_types(self):
         for t in (
-            fitz.PDF_WIDGET_TYPE_RADIOBUTTON,
-            fitz.PDF_WIDGET_TYPE_COMBOBOX,
-            fitz.PDF_WIDGET_TYPE_LISTBOX,
+            pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON,
+            pymupdf.PDF_WIDGET_TYPE_COMBOBOX,
+            pymupdf.PDF_WIDGET_TYPE_LISTBOX,
         ):
             assert is_choice_widget(_FakeWidget(t))
 
     def test_is_choice_widget_false_for_others(self):
-        for t in (fitz.PDF_WIDGET_TYPE_TEXT, fitz.PDF_WIDGET_TYPE_CHECKBOX):
+        for t in (pymupdf.PDF_WIDGET_TYPE_TEXT, pymupdf.PDF_WIDGET_TYPE_CHECKBOX):
             assert not is_choice_widget(_FakeWidget(t))
 
     def test_is_checkbox(self):
-        assert is_checkbox(_FakeWidget(fitz.PDF_WIDGET_TYPE_CHECKBOX))
-        assert not is_checkbox(_FakeWidget(fitz.PDF_WIDGET_TYPE_TEXT))
+        assert is_checkbox(_FakeWidget(pymupdf.PDF_WIDGET_TYPE_CHECKBOX))
+        assert not is_checkbox(_FakeWidget(pymupdf.PDF_WIDGET_TYPE_TEXT))
 
 
 class TestStringPredicates:

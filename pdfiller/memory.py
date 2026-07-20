@@ -13,7 +13,7 @@ import tempfile
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from .exceptions import DefaultsValidationError
 
@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 
 # Type for matcher functions: (field_name, defaults_dict) -> match or None
 MatcherFunc = Callable[
-    [str, Dict[str, Union[str, List[str]]]],
-    Optional[Union[str, List[str]]],
+    [str, dict[str, Union[str, list[str]]]],
+    Optional[Union[str, list[str]]],
 ]
 
 # Registry of named matchers, ordered by registration order
@@ -39,7 +39,7 @@ def _default_path() -> Path:
 # -- Schema validation (6.2) --
 
 
-def validate_defaults(data: Dict[str, Any]) -> None:
+def validate_defaults(data: dict[str, Any]) -> None:
     """Validate the structure of a defaults dict.
 
     Expected structure:
@@ -121,7 +121,7 @@ def _validate_category(category: str, fields: dict) -> None:
 # -- Load / save --
 
 
-def load_defaults(path: Optional[Path] = None) -> Dict[str, Any]:
+def load_defaults(path: Optional[Path] = None) -> dict[str, Any]:
     """Load defaults from JSON file.
 
     Returns empty dict if file is missing or contains invalid JSON.
@@ -140,7 +140,7 @@ def load_defaults(path: Optional[Path] = None) -> Dict[str, Any]:
     return data
 
 
-def save_defaults(data: Dict[str, Any], path: Optional[Path] = None) -> Path:
+def save_defaults(data: dict[str, Any], path: Optional[Path] = None) -> Path:
     """Save defaults to JSON file. Creates parent dirs and adds _meta.updated timestamp.
 
     The write is atomic (temp file + os.replace) so a crash mid-write cannot
@@ -177,7 +177,7 @@ def save_defaults(data: Dict[str, Any], path: Optional[Path] = None) -> Path:
 # -- Flatten --
 
 
-def _coerce_list(value: list) -> Optional[Union[str, List[str]]]:
+def _coerce_list(value: list) -> Optional[Union[str, list[str]]]:
     """Coerce a list value for flattening.
 
     Single-element string lists collapse to a plain string.
@@ -193,14 +193,14 @@ def _coerce_list(value: list) -> Optional[Union[str, List[str]]]:
     return value
 
 
-def flatten_defaults(data: Dict[str, Any]) -> Dict[str, Union[str, List[str]]]:
+def flatten_defaults(data: dict[str, Any]) -> dict[str, Union[str, list[str]]]:
     """Flatten nested defaults to a flat {field_name: value} dict.
 
     Skips the _meta key, _aliases keys, and any non-string leaf values.
     List values are supported: single-element lists collapse to strings,
     multi-element all-string lists are preserved as lists.
     """
-    flat: Dict[str, Union[str, List[str]]] = {}
+    flat: dict[str, Union[str, list[str]]] = {}
     for key, value in data.items():
         if key == "_meta":
             continue
@@ -258,7 +258,7 @@ def unregister_matcher(name: str) -> None:
     _matchers.pop(name, None)
 
 
-def list_matchers() -> List[str]:
+def list_matchers() -> list[str]:
     """Return the names of all registered matchers in order."""
     return list(_matchers.keys())
 
@@ -283,8 +283,8 @@ def reset_matchers() -> None:
 
 
 def _exact_matcher(
-    field_name: str, defaults: Dict[str, Union[str, List[str]]]
-) -> Optional[Union[str, List[str]]]:
+    field_name: str, defaults: dict[str, Union[str, list[str]]]
+) -> Optional[Union[str, list[str]]]:
     """Match by exact field name."""
     if field_name in defaults:
         return defaults[field_name]
@@ -292,8 +292,8 @@ def _exact_matcher(
 
 
 def _normalized_matcher(
-    field_name: str, defaults: Dict[str, Union[str, List[str]]]
-) -> Optional[Union[str, List[str]]]:
+    field_name: str, defaults: dict[str, Union[str, list[str]]]
+) -> Optional[Union[str, list[str]]]:
     """Match by normalized field name (case/separator insensitive)."""
     norm_field = _normalize(field_name)
     for key, value in defaults.items():
@@ -305,12 +305,12 @@ def _normalized_matcher(
 # -- Alias support (7.1) --
 
 
-def _collect_aliases(data: Dict[str, Any]) -> Dict[str, str]:
+def _collect_aliases(data: dict[str, Any]) -> dict[str, str]:
     """Collect all _aliases from all categories into a flat mapping.
 
     Returns a dict mapping alias -> canonical field name.
     """
-    aliases: Dict[str, str] = {}
+    aliases: dict[str, str] = {}
     for key, value in data.items():
         if key == "_meta":
             continue
@@ -321,7 +321,7 @@ def _collect_aliases(data: Dict[str, Any]) -> Dict[str, str]:
 
 
 def build_alias_matcher(
-    raw_defaults: Dict[str, Any],
+    raw_defaults: dict[str, Any],
 ) -> MatcherFunc:
     """Build a matcher function that resolves field aliases.
 
@@ -332,11 +332,11 @@ def build_alias_matcher(
     """
     aliases = _collect_aliases(raw_defaults)
     # Also build a normalized alias map for fuzzy alias matching
-    norm_aliases: Dict[str, str] = {_normalize(a): c for a, c in aliases.items()}
+    norm_aliases: dict[str, str] = {_normalize(a): c for a, c in aliases.items()}
 
     def _alias_matcher(
-        field_name: str, defaults: Dict[str, Union[str, List[str]]]
-    ) -> Optional[Union[str, List[str]]]:
+        field_name: str, defaults: dict[str, Union[str, list[str]]]
+    ) -> Optional[Union[str, list[str]]]:
         # Exact alias match
         canonical = aliases.get(field_name)
         if canonical is None:
@@ -354,8 +354,8 @@ def build_alias_matcher(
 
 
 def match_field_to_defaults(
-    field_name: str, defaults: Dict[str, Union[str, List[str]]]
-) -> Optional[Union[str, List[str]]]:
+    field_name: str, defaults: dict[str, Union[str, list[str]]]
+) -> Optional[Union[str, list[str]]]:
     """Match a PDF field name to a stored default value.
 
     Tries all registered matchers in order and returns the first match.

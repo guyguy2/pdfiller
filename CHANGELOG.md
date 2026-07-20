@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Opening an encrypted PDF no longer fails outright: it succeeds when the empty or supplied password authenticates, and still raises `PDFReadError` for a wrong or missing password
+- Minimum Python is now 3.9 (3.8 reached end of life in October 2024); type annotations modernized to built-in generics (`dict`/`list`)
+- Switched to the canonical `import pymupdf` throughout, replacing the deprecated `import fitz` alias
 
 ### Changed
 

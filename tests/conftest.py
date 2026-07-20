@@ -6,7 +6,7 @@ import struct
 import zlib
 from pathlib import Path
 
-import fitz
+import pymupdf
 import pytest
 
 from pdfiller.memory import reset_matchers
@@ -56,26 +56,26 @@ def tmp_pdf_dir(tmp_path):
 def fillable_pdf(tmp_path):
     """Create a single-page fillable PDF with text and checkbox fields."""
     path = tmp_path / "fillable.pdf"
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page(width=612, height=792)
 
     # Add text fields
     for name, rect in [
-        ("first_name", fitz.Rect(100, 100, 300, 120)),
-        ("last_name", fitz.Rect(100, 140, 300, 160)),
-        ("email", fitz.Rect(100, 180, 300, 200)),
+        ("first_name", pymupdf.Rect(100, 100, 300, 120)),
+        ("last_name", pymupdf.Rect(100, 140, 300, 160)),
+        ("email", pymupdf.Rect(100, 180, 300, 200)),
     ]:
-        widget = fitz.Widget()
-        widget.field_type = fitz.PDF_WIDGET_TYPE_TEXT
+        widget = pymupdf.Widget()
+        widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
         widget.field_name = name
         widget.rect = rect
         page.add_widget(widget)
 
     # Add checkbox
-    widget = fitz.Widget()
-    widget.field_type = fitz.PDF_WIDGET_TYPE_CHECKBOX
+    widget = pymupdf.Widget()
+    widget.field_type = pymupdf.PDF_WIDGET_TYPE_CHECKBOX
     widget.field_name = "agree_terms"
-    widget.rect = fitz.Rect(100, 220, 120, 240)
+    widget.rect = pymupdf.Rect(100, 220, 120, 240)
     page.add_widget(widget)
 
     doc.save(str(path))
@@ -87,16 +87,16 @@ def fillable_pdf(tmp_path):
 def multi_page_pdf(tmp_path):
     """Create a multi-page fillable PDF with fields on different pages."""
     path = tmp_path / "multi_page.pdf"
-    doc = fitz.open()
+    doc = pymupdf.open()
 
     # Page 0: personal info
     page0 = doc.new_page(width=612, height=792)
     for name, rect in [
-        ("first_name", fitz.Rect(100, 100, 300, 120)),
-        ("last_name", fitz.Rect(100, 140, 300, 160)),
+        ("first_name", pymupdf.Rect(100, 100, 300, 120)),
+        ("last_name", pymupdf.Rect(100, 140, 300, 160)),
     ]:
-        widget = fitz.Widget()
-        widget.field_type = fitz.PDF_WIDGET_TYPE_TEXT
+        widget = pymupdf.Widget()
+        widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
         widget.field_name = name
         widget.rect = rect
         page0.add_widget(widget)
@@ -104,21 +104,21 @@ def multi_page_pdf(tmp_path):
     # Page 1: contact info
     page1 = doc.new_page(width=612, height=792)
     for name, rect in [
-        ("email", fitz.Rect(100, 100, 300, 120)),
-        ("phone", fitz.Rect(100, 140, 300, 160)),
+        ("email", pymupdf.Rect(100, 100, 300, 120)),
+        ("phone", pymupdf.Rect(100, 140, 300, 160)),
     ]:
-        widget = fitz.Widget()
-        widget.field_type = fitz.PDF_WIDGET_TYPE_TEXT
+        widget = pymupdf.Widget()
+        widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
         widget.field_name = name
         widget.rect = rect
         page1.add_widget(widget)
 
     # Page 2: confirmation checkbox
     page2 = doc.new_page(width=612, height=792)
-    widget = fitz.Widget()
-    widget.field_type = fitz.PDF_WIDGET_TYPE_CHECKBOX
+    widget = pymupdf.Widget()
+    widget.field_type = pymupdf.PDF_WIDGET_TYPE_CHECKBOX
     widget.field_name = "confirm"
-    widget.rect = fitz.Rect(100, 100, 120, 120)
+    widget.rect = pymupdf.Rect(100, 100, 120, 120)
     page2.add_widget(widget)
 
     doc.save(str(path))
@@ -130,7 +130,7 @@ def multi_page_pdf(tmp_path):
 def non_fillable_pdf(tmp_path):
     """Create a PDF with no form fields (plain text only)."""
     path = tmp_path / "non_fillable.pdf"
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page(width=612, height=792)
     page.insert_text((100, 100), "Name: _______________", fontsize=12)
     page.insert_text((100, 140), "Date: _______________", fontsize=12)
@@ -143,21 +143,21 @@ def non_fillable_pdf(tmp_path):
 def fillable_pdf_with_checked_box(tmp_path):
     """Create a fillable PDF with a checkbox that is pre-checked."""
     path = tmp_path / "checked_box.pdf"
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page(width=612, height=792)
 
     # Add a text field
-    widget = fitz.Widget()
-    widget.field_type = fitz.PDF_WIDGET_TYPE_TEXT
+    widget = pymupdf.Widget()
+    widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
     widget.field_name = "name"
-    widget.rect = fitz.Rect(100, 100, 300, 120)
+    widget.rect = pymupdf.Rect(100, 100, 300, 120)
     page.add_widget(widget)
 
     # Add a checkbox that is pre-checked
-    widget = fitz.Widget()
-    widget.field_type = fitz.PDF_WIDGET_TYPE_CHECKBOX
+    widget = pymupdf.Widget()
+    widget.field_type = pymupdf.PDF_WIDGET_TYPE_CHECKBOX
     widget.field_name = "agree"
-    widget.rect = fitz.Rect(100, 140, 120, 160)
+    widget.rect = pymupdf.Rect(100, 140, 120, 160)
     page.add_widget(widget)
 
     # Check the box by setting field_value and updating
@@ -176,19 +176,19 @@ def fillable_pdf_with_checked_box(tmp_path):
 def fillable_pdf_with_dates(tmp_path):
     """Create a fillable PDF with date fields for testing auto-date functionality."""
     path = tmp_path / "fillable_with_dates.pdf"
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page(width=612, height=792)
 
     # Add text fields including a date field
     for name, rect in [
-        ("first_name", fitz.Rect(100, 100, 300, 120)),
-        ("sign_date", fitz.Rect(100, 140, 300, 160)),
-        ("date_signed", fitz.Rect(100, 180, 300, 200)),
-        ("date_of_birth", fitz.Rect(100, 220, 300, 240)),
-        ("expiration_date", fitz.Rect(100, 260, 300, 280)),
+        ("first_name", pymupdf.Rect(100, 100, 300, 120)),
+        ("sign_date", pymupdf.Rect(100, 140, 300, 160)),
+        ("date_signed", pymupdf.Rect(100, 180, 300, 200)),
+        ("date_of_birth", pymupdf.Rect(100, 220, 300, 240)),
+        ("expiration_date", pymupdf.Rect(100, 260, 300, 280)),
     ]:
-        widget = fitz.Widget()
-        widget.field_type = fitz.PDF_WIDGET_TYPE_TEXT
+        widget = pymupdf.Widget()
+        widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
         widget.field_name = name
         widget.rect = rect
         page.add_widget(widget)
@@ -202,21 +202,21 @@ def fillable_pdf_with_dates(tmp_path):
 def fillable_pdf_with_dropdown(tmp_path):
     """Create a fillable PDF with a dropdown/combobox field."""
     path = tmp_path / "dropdown.pdf"
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page(width=612, height=792)
 
     # Add a text field
-    widget = fitz.Widget()
-    widget.field_type = fitz.PDF_WIDGET_TYPE_TEXT
+    widget = pymupdf.Widget()
+    widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
     widget.field_name = "name"
-    widget.rect = fitz.Rect(100, 100, 300, 120)
+    widget.rect = pymupdf.Rect(100, 100, 300, 120)
     page.add_widget(widget)
 
     # Add a combobox/dropdown field
-    widget = fitz.Widget()
-    widget.field_type = fitz.PDF_WIDGET_TYPE_COMBOBOX
+    widget = pymupdf.Widget()
+    widget.field_type = pymupdf.PDF_WIDGET_TYPE_COMBOBOX
     widget.field_name = "state"
-    widget.rect = fitz.Rect(100, 140, 300, 160)
+    widget.rect = pymupdf.Rect(100, 140, 300, 160)
     widget.choice_values = ["CA", "NY", "TX"]
     page.add_widget(widget)
 
@@ -229,14 +229,14 @@ def fillable_pdf_with_dropdown(tmp_path):
 def fillable_pdf_with_listbox(tmp_path):
     """Create a fillable PDF with a listbox field."""
     path = tmp_path / "listbox.pdf"
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page(width=612, height=792)
 
     # Add a listbox field
-    widget = fitz.Widget()
-    widget.field_type = fitz.PDF_WIDGET_TYPE_LISTBOX
+    widget = pymupdf.Widget()
+    widget.field_type = pymupdf.PDF_WIDGET_TYPE_LISTBOX
     widget.field_name = "color"
-    widget.rect = fitz.Rect(100, 100, 300, 180)
+    widget.rect = pymupdf.Rect(100, 100, 300, 180)
     widget.choice_values = ["Red", "Green", "Blue"]
     page.add_widget(widget)
 
@@ -253,12 +253,12 @@ def encrypted_pdf_empty_user_pw(tmp_path):
     file is still flagged as encrypted.
     """
     path = tmp_path / "encrypted_empty.pdf"
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page(width=612, height=792)
     page.insert_text((100, 100), "Encrypted content", fontsize=12)
     doc.save(
         str(path),
-        encryption=fitz.PDF_ENCRYPT_AES_256,
+        encryption=pymupdf.PDF_ENCRYPT_AES_256,
         owner_pw="owner-secret",
         user_pw="",
     )
@@ -270,12 +270,12 @@ def encrypted_pdf_empty_user_pw(tmp_path):
 def encrypted_pdf_with_user_pw(tmp_path):
     """Create an encrypted PDF protected by a non-empty user password."""
     path = tmp_path / "encrypted_user.pdf"
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page(width=612, height=792)
     page.insert_text((100, 100), "Secret content", fontsize=12)
     doc.save(
         str(path),
-        encryption=fitz.PDF_ENCRYPT_AES_256,
+        encryption=pymupdf.PDF_ENCRYPT_AES_256,
         owner_pw="owner-secret",
         user_pw="open-sesame",
     )
@@ -287,7 +287,7 @@ def encrypted_pdf_with_user_pw(tmp_path):
 def large_pdf(tmp_path):
     """Create a PDF file that exceeds a small size limit for testing."""
     path = tmp_path / "large.pdf"
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page(width=612, height=792)
     # Add enough text to make the file non-trivial
     page.insert_text((100, 100), "Hello", fontsize=12)

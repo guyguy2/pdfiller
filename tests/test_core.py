@@ -4,7 +4,7 @@ Tests for pdfiller.core module - multi-page, text overlay, and layout features.
 
 import logging
 
-import fitz
+import pymupdf
 import pytest
 
 from pdfiller.core import DEFAULT_MAX_IMAGE_SIZE, DEFAULT_MAX_PDF_SIZE, PDFFiller
@@ -33,10 +33,10 @@ class TestOpenErrors:
 
     def test_encrypted_pdf_raises(self, tmp_path):
         path = tmp_path / "encrypted.pdf"
-        doc = fitz.open()
+        doc = pymupdf.open()
         doc.new_page()
-        perm = fitz.PDF_PERM_ACCESSIBILITY
-        encrypt_meth = fitz.PDF_ENCRYPT_AES_256
+        perm = pymupdf.PDF_PERM_ACCESSIBILITY
+        encrypt_meth = pymupdf.PDF_ENCRYPT_AES_256
         doc.save(
             str(path), encryption=encrypt_meth, owner_pw="owner", user_pw="user", permissions=perm
         )
@@ -143,7 +143,7 @@ class TestMultiPageFillAndSave:
             f.save(out, flatten=True)
 
         # Verify the output exists and is a valid PDF
-        doc = fitz.open(str(out))
+        doc = pymupdf.open(str(out))
         assert len(doc) == 3
         doc.close()
 
@@ -196,7 +196,7 @@ class TestInsertText:
             f.save(out, flatten=False)
 
         # Verify the text was written
-        doc = fitz.open(str(out))
+        doc = pymupdf.open(str(out))
         text = doc[0].get_text()
         assert "Inserted Text" in text
         doc.close()
@@ -221,7 +221,7 @@ class TestInsertTextBox:
             f.insert_text_box("Box Content", 100, 300, 400, 350)
             f.save(out, flatten=False)
 
-        doc = fitz.open(str(out))
+        doc = pymupdf.open(str(out))
         text = doc[0].get_text()
         assert "Box Content" in text
         doc.close()
@@ -240,7 +240,7 @@ class TestInsertImage:
             f.insert_image(tiny_png, 100, 400, 300, 450)
             f.save(out, flatten=False)
 
-        doc = fitz.open(str(out))
+        doc = pymupdf.open(str(out))
         assert len(doc[0].get_images()) > 0
         doc.close()
 
@@ -251,8 +251,9 @@ class TestInsertImage:
     def test_invalid_image_format_raises(self, non_fillable_pdf, tmp_path):
         bad_img = tmp_path / "not_an_image.png"
         bad_img.write_text("this is not a PNG")
-        with PDFFiller(non_fillable_pdf) as f, pytest.raises(
-            PDFFillerError, match="Invalid or unsupported"
+        with (
+            PDFFiller(non_fillable_pdf) as f,
+            pytest.raises(PDFFillerError, match="Invalid or unsupported"),
         ):
             f.insert_image(bad_img, 0, 0, 100, 100)
 
@@ -270,7 +271,7 @@ class TestInsertImage:
             f.insert_image(tiny_png, 100, 300, 300, 350, page_num=1)
             f.save(out, flatten=False)
 
-        doc = fitz.open(str(out))
+        doc = pymupdf.open(str(out))
         assert len(doc[0].get_images()) == 0
         assert len(doc[1].get_images()) > 0
         doc.close()
@@ -283,7 +284,7 @@ class TestInsertTextMultiPage:
             f.insert_text("Page 2 Note", 100, 300, page_num=1)
             f.save(out, flatten=False)
 
-        doc = fitz.open(str(out))
+        doc = pymupdf.open(str(out))
         assert "Page 2 Note" not in doc[0].get_text()
         assert "Page 2 Note" in doc[1].get_text()
         doc.close()
@@ -337,7 +338,7 @@ class TestAutoDateFilling:
         with PDFFiller(fillable_pdf_with_dates, date_format="%Y-%m-%d") as f:
             f.save(out, flatten=False)
 
-        doc = fitz.open(str(out))
+        doc = pymupdf.open(str(out))
         values = {w.field_name: w.field_value for page in doc for w in page.widgets()}
         doc.close()
         assert values["sign_date"] == datetime.now().strftime("%Y-%m-%d")
@@ -405,7 +406,7 @@ class TestAutoDateWithFlatten:
             f.save(out, flatten=True)
 
         # After flattening, the date should be visible as text (not a field)
-        doc = fitz.open(str(out))
+        doc = pymupdf.open(str(out))
         text = doc[0].get_text()
         today = PDFFiller._format_today_date()
         assert today in text
@@ -428,7 +429,7 @@ class TestFlattenPreservesExisting:
         with PDFFiller(source) as f2:
             f2.save(out, flatten=True)
 
-        doc = fitz.open(str(out))
+        doc = pymupdf.open(str(out))
         text = doc[0].get_text()
         doc.close()
         assert "Preexisting" in text
@@ -441,7 +442,7 @@ class TestFlattenPreservesExisting:
             f.check_box("agree_terms")
             f.save(out, flatten=True)
 
-        doc = fitz.open(str(out))
+        doc = pymupdf.open(str(out))
         text = doc[0].get_text()
         doc.close()
         assert "X" in text
@@ -480,7 +481,7 @@ class TestFlattenTextFitsWidgetRect:
     The first_name widget in the fillable_pdf fixture spans (100, 100, 300, 120).
     """
 
-    FIELD_RECT = fitz.Rect(100, 100, 300, 120)
+    FIELD_RECT = pymupdf.Rect(100, 100, 300, 120)
     TOLERANCE = 1.0
 
     def _rendered_words(self, fillable_pdf, tmp_path, value):
@@ -488,7 +489,7 @@ class TestFlattenTextFitsWidgetRect:
         with PDFFiller(fillable_pdf, auto_fill_dates=False) as f:
             f.fill_field("first_name", value)
             f.save(out, flatten=True)
-        doc = fitz.open(str(out))
+        doc = pymupdf.open(str(out))
         words = doc[0].get_text("words")
         doc.close()
         return words
@@ -816,9 +817,10 @@ class TestPDFSizeLimit:
         file_size = large_pdf.stat().st_size
         # Set limit to just above file_size so it passes, but file is >50%
         limit = file_size + 100
-        with caplog.at_level(logging.WARNING, logger="pdfiller.core"), PDFFiller(
-            large_pdf, max_pdf_size=limit
-        ) as f:
+        with (
+            caplog.at_level(logging.WARNING, logger="pdfiller.core"),
+            PDFFiller(large_pdf, max_pdf_size=limit) as f,
+        ):
             assert f.page_count == 1
         assert "over 50%" in caplog.text
 
@@ -826,9 +828,10 @@ class TestPDFSizeLimit:
         """A PDF well below 50% of the limit should not log a warning."""
         file_size = large_pdf.stat().st_size
         limit = file_size * 10  # 10x the size, so well under 50%
-        with caplog.at_level(logging.WARNING, logger="pdfiller.core"), PDFFiller(
-            large_pdf, max_pdf_size=limit
-        ) as f:
+        with (
+            caplog.at_level(logging.WARNING, logger="pdfiller.core"),
+            PDFFiller(large_pdf, max_pdf_size=limit) as f,
+        ):
             assert f.page_count == 1
         assert "over 50%" not in caplog.text
 
@@ -840,8 +843,9 @@ class TestPDFSizeLimit:
 class TestImageSizeLimit:
     def test_exceeds_max_image_size_raises(self, non_fillable_pdf, tiny_png):
         """Inserting an image that exceeds max_image_size raises PDFFillerError."""
-        with PDFFiller(non_fillable_pdf, max_image_size=1) as f, pytest.raises(
-            PDFFillerError, match="exceeds maximum"
+        with (
+            PDFFiller(non_fillable_pdf, max_image_size=1) as f,
+            pytest.raises(PDFFillerError, match="exceeds maximum"),
         ):
             f.insert_image(tiny_png, 100, 200, 300, 250)
 
@@ -861,9 +865,10 @@ class TestImageSizeLimit:
         """An image over 50% of the limit should log a warning."""
         img_size = tiny_png.stat().st_size
         limit = img_size + 10  # just above file_size so >50%
-        with caplog.at_level(logging.WARNING, logger="pdfiller.core"), PDFFiller(
-            non_fillable_pdf, max_image_size=limit
-        ) as f:
+        with (
+            caplog.at_level(logging.WARNING, logger="pdfiller.core"),
+            PDFFiller(non_fillable_pdf, max_image_size=limit) as f,
+        ):
             f.insert_image(tiny_png, 100, 200, 300, 250)
         assert "over 50%" in caplog.text
 
@@ -905,7 +910,7 @@ class TestFillMethod:
             assert len(f._text_overlays) == 2
             f.save(out, flatten=False)
 
-        doc = fitz.open(str(out))
+        doc = pymupdf.open(str(out))
         text = doc[0].get_text()
         assert "Jane Doe" in text
         assert "3/15/2026" in text
@@ -913,15 +918,17 @@ class TestFillMethod:
 
     def test_non_fillable_missing_text_key_raises(self, non_fillable_pdf):
         """fill() on non-fillable PDF with bad data format raises PDFFillerError."""
-        with PDFFiller(non_fillable_pdf) as f, pytest.raises(
-            PDFFillerError, match="coordinate-based"
+        with (
+            PDFFiller(non_fillable_pdf) as f,
+            pytest.raises(PDFFillerError, match="coordinate-based"),
         ):
             f.fill({"Name": "plain string"})
 
     def test_non_fillable_missing_text_in_dict_raises(self, non_fillable_pdf):
         """fill() on non-fillable PDF with dict missing 'text' raises PDFFillerError."""
-        with PDFFiller(non_fillable_pdf) as f, pytest.raises(
-            PDFFillerError, match="coordinate-based"
+        with (
+            PDFFiller(non_fillable_pdf) as f,
+            pytest.raises(PDFFillerError, match="coordinate-based"),
         ):
             f.fill({"Name": {"x": 100, "y": 200}})
 

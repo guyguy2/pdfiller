@@ -244,9 +244,10 @@ class TestAtomicSave:
         path = tmp_path / "defaults.json"
         save_defaults({"personal": {"first_name": "Guy"}}, path)
 
-        with mock.patch(
-            "pdfiller.memory.json.dump", side_effect=OSError("disk full")
-        ), pytest.raises(OSError):
+        with (
+            mock.patch("pdfiller.memory.json.dump", side_effect=OSError("disk full")),
+            pytest.raises(OSError),
+        ):
             save_defaults({"personal": {"first_name": "Other"}}, path)
 
         loaded = load_defaults(path)
@@ -254,9 +255,10 @@ class TestAtomicSave:
 
     def test_failed_write_leaves_no_temp_file(self, tmp_path):
         path = tmp_path / "defaults.json"
-        with mock.patch(
-            "pdfiller.memory.json.dump", side_effect=OSError("disk full")
-        ), pytest.raises(OSError):
+        with (
+            mock.patch("pdfiller.memory.json.dump", side_effect=OSError("disk full")),
+            pytest.raises(OSError),
+        ):
             save_defaults({"a": "1"}, path)
         assert list(tmp_path.iterdir()) == []
 

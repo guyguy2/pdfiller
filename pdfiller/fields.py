@@ -8,13 +8,13 @@ Widget-holding code (``core``) uses the numeric predicates; code that only has
 the type groupings are defined in exactly one place.
 """
 
-import fitz  # PyMuPDF
+import pymupdf
 
 # Widget types that carry a fixed set of choices.
 CHOICE_WIDGET_TYPES = (
-    fitz.PDF_WIDGET_TYPE_RADIOBUTTON,
-    fitz.PDF_WIDGET_TYPE_COMBOBOX,
-    fitz.PDF_WIDGET_TYPE_LISTBOX,
+    pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON,
+    pymupdf.PDF_WIDGET_TYPE_COMBOBOX,
+    pymupdf.PDF_WIDGET_TYPE_LISTBOX,
 )
 
 # String type names as reported by widget.field_type_string.
@@ -29,7 +29,7 @@ def is_choice_widget(widget) -> bool:
 
 def is_checkbox(widget) -> bool:
     """True if the widget is a checkbox."""
-    return widget.field_type == fitz.PDF_WIDGET_TYPE_CHECKBOX
+    return widget.field_type == pymupdf.PDF_WIDGET_TYPE_CHECKBOX
 
 
 def is_checkbox_type(type_string: str) -> bool:

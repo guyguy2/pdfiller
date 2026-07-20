@@ -8,9 +8,9 @@ import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
-import fitz  # PyMuPDF
+import pymupdf
 
 from .exceptions import FieldNotFoundError, PDFFillerError, PDFReadError, PDFWriteError
 from .fields import is_checkbox, is_choice_widget
@@ -104,12 +104,12 @@ class PDFFiller:
             # in malformed PDFs) that clutter stderr but don't affect output.
             # Scope the suppression to the open call and restore the prior
             # global setting so we don't silence genuine errors elsewhere.
-            prev_display_errors = fitz.TOOLS.mupdf_display_errors()
-            fitz.TOOLS.mupdf_display_errors(False)
+            prev_display_errors = pymupdf.TOOLS.mupdf_display_errors()
+            pymupdf.TOOLS.mupdf_display_errors(False)
             try:
-                self.doc = fitz.open(str(self.pdf_path))
+                self.doc = pymupdf.open(str(self.pdf_path))
             finally:
-                fitz.TOOLS.mupdf_display_errors(prev_display_errors)
+                pymupdf.TOOLS.mupdf_display_errors(prev_display_errors)
         except Exception as e:
             raise PDFReadError(f"Failed to open PDF: {e}") from e
 
@@ -119,13 +119,13 @@ class PDFFiller:
             self.doc.close()
             raise PDFReadError(f"PDF is password-protected: {pdf_path}")
 
-        self._fields_to_fill: Dict[str, Any] = {}
+        self._fields_to_fill: dict[str, Any] = {}
         self._checkboxes_to_check: set = set()
         self._checkboxes_to_uncheck: set = set()
         self._text_overlays: list = []
         self._image_overlays: list = []
         self._preserve_existing = False
-        self._skipped_operations: List[Dict[str, Any]] = []
+        self._skipped_operations: list[dict[str, Any]] = []
         self._saved = False
 
     def __enter__(self):
@@ -146,7 +146,7 @@ class PDFFiller:
         """Number of pages in the PDF."""
         return len(self.doc)
 
-    def list_fields(self) -> List[Dict[str, Any]]:
+    def list_fields(self) -> list[dict[str, Any]]:
         """
         List all form fields across all pages in the PDF
 
@@ -217,7 +217,7 @@ class PDFFiller:
         self._fields_to_fill[field_name] = value
         return self
 
-    def fill_fields(self, fields: Dict[str, Any]) -> "PDFFiller":
+    def fill_fields(self, fields: dict[str, Any]) -> "PDFFiller":
         """
         Fill multiple fields at once
 
@@ -234,7 +234,7 @@ class PDFFiller:
             self.fill_field(name, value)
         return self
 
-    def fill(self, data: Dict[str, Any]) -> "PDFFiller":
+    def fill(self, data: dict[str, Any]) -> "PDFFiller":
         """
         High-level fill method that auto-detects fillable vs non-fillable PDFs.
 
@@ -454,7 +454,7 @@ class PDFFiller:
                 pass
         return False
 
-    def get_page_layout(self, page_num: int = 0) -> Dict[str, Any]:
+    def get_page_layout(self, page_num: int = 0) -> dict[str, Any]:
         """Extract text blocks with positions and page dimensions.
 
         Useful for figuring out where to place text on non-fillable PDFs.
@@ -503,7 +503,7 @@ class PDFFiller:
         page_num: int = 0,
         font_size: float = 10,
         font_name: str = "helv",
-        color: Tuple[float, float, float] = (0, 0, 0),
+        color: tuple[float, float, float] = (0, 0, 0),
     ) -> "PDFFiller":
         """Queue text insertion at specific coordinates on a page.
 
@@ -545,7 +545,7 @@ class PDFFiller:
         page_num: int = 0,
         font_size: float = 10,
         font_name: str = "helv",
-        color: Tuple[float, float, float] = (0, 0, 0),
+        color: tuple[float, float, float] = (0, 0, 0),
     ) -> "PDFFiller":
         """Queue text insertion in a bounding box with wrapping.
 
@@ -626,7 +626,7 @@ class PDFFiller:
 
         # Validate the file is a recognizable image format
         try:
-            fitz.Pixmap(str(image_path))
+            pymupdf.Pixmap(str(image_path))
         except Exception as e:
             raise PDFFillerError(f"Invalid or unsupported image file: {image_path}") from e
 
@@ -646,7 +646,7 @@ class PDFFiller:
             # insert_image() already validated page_num when the overlay was queued
             page = self.doc[overlay["page_num"]]
             page.insert_image(
-                fitz.Rect(overlay["rect"]),
+                pymupdf.Rect(overlay["rect"]),
                 filename=overlay["image_path"],
                 keep_proportion=overlay["keep_proportion"],
             )
@@ -667,7 +667,7 @@ class PDFFiller:
                 )
             elif overlay["type"] == "box":
                 page.insert_textbox(
-                    fitz.Rect(overlay["rect"]),
+                    pymupdf.Rect(overlay["rect"]),
                     overlay["text"],
                     fontsize=overlay["font_size"],
                     fontname=overlay["font_name"],
@@ -719,7 +719,7 @@ class PDFFiller:
 
         try:
             # Reopen and add text overlays for form fields
-            self.doc = fitz.open(str(temp_path))
+            self.doc = pymupdf.open(str(temp_path))
 
             for page_num in range(self.page_count):
                 page = self.doc[page_num]
@@ -818,7 +818,7 @@ class PDFFiller:
         except Exception as e:
             raise PDFWriteError(f"Failed to save PDF: {e}") from e
 
-    def validate_fields(self, field_names: List[str], raise_error: bool = False) -> Dict[str, bool]:
+    def validate_fields(self, field_names: list[str], raise_error: bool = False) -> dict[str, bool]:
         """
         Validate that field names exist in the PDF
 
@@ -844,7 +844,7 @@ class PDFFiller:
 
         return results
 
-    def _compute_auto_date_fields(self) -> List[str]:
+    def _compute_auto_date_fields(self) -> list[str]:
         """Names of empty date fields that save() will auto-fill with today's date.
 
         Mirrors the _apply_field_updates() logic: fields already queued for
@@ -867,7 +867,7 @@ class PDFFiller:
         return result
 
     @property
-    def pending_operations(self) -> Dict[str, Any]:
+    def pending_operations(self) -> dict[str, Any]:
         """Summary of queued operations not yet saved.
 
         Returns:
@@ -886,7 +886,7 @@ class PDFFiller:
         }
 
     @property
-    def skipped_operations(self) -> List[Dict[str, Any]]:
+    def skipped_operations(self) -> list[dict[str, Any]]:
         """Operations that save() skipped instead of applying.
 
         Populated during save(); empty before. Each entry has 'field',
