@@ -173,6 +173,63 @@ class TestFillCommand:
         assert "Dry run" in result.stdout
         assert "first_name = Alice" in result.stdout
 
+    def test_dry_run_lists_auto_date_fields(self, fillable_pdf_with_dates):
+        result = run_cli(
+            "fill",
+            "-i",
+            str(fillable_pdf_with_dates),
+            "-f",
+            "first_name=Alice",
+            "--dry-run",
+        )
+        assert result.returncode == 0
+        assert "sign_date = [auto-date: today]" in result.stdout
+        assert "date_signed = [auto-date: today]" in result.stdout
+        assert "date_of_birth" not in result.stdout
+
+    def test_dry_run_no_auto_dates_hides_auto_date_fields(self, fillable_pdf_with_dates):
+        result = run_cli(
+            "fill",
+            "-i",
+            str(fillable_pdf_with_dates),
+            "-f",
+            "first_name=Alice",
+            "--dry-run",
+            "--no-auto-dates",
+        )
+        assert result.returncode == 0
+        assert "[auto-date: today]" not in result.stdout
+
+    def test_verbose_reports_preserve_existing_skips(self, fillable_pdf, tmp_path):
+        prefilled = tmp_path / "prefilled.pdf"
+        result = run_cli(
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-f",
+            "first_name=Original",
+            "-o",
+            str(prefilled),
+            "--no-flatten",
+        )
+        assert result.returncode == 0
+
+        out = tmp_path / "kept.pdf"
+        result = run_cli(
+            "fill",
+            "-i",
+            str(prefilled),
+            "-f",
+            "first_name=New",
+            "-o",
+            str(out),
+            "--preserve-existing",
+            "--no-flatten",
+            "-v",
+        )
+        assert result.returncode == 0
+        assert "Skipped first_name (kept existing value 'Original')" in result.stdout
+
     def test_verbose_shows_fields(self, fillable_pdf, tmp_path):
         out = tmp_path / "filled.pdf"
         result = run_cli(
@@ -952,6 +1009,119 @@ class TestBatchCommand:
         with PDFFiller(out_dir / "fillable_filled_002.pdf") as f:
             assert f.get_field_value("first_name") == "Bob"
             assert f.get_field_value("last_name") == "Jones"
+
+    def test_batch_name_from_column(self, fillable_pdf, tmp_path):
+        csv_file = tmp_path / "data.csv"
+        csv_file.write_text("first_name\nGuy\nAlice\n")
+        out_dir = tmp_path / "filled"
+        result = run_cli(
+            "batch",
+            "-i",
+            str(fillable_pdf),
+            "--csv",
+            str(csv_file),
+            "--output-dir",
+            str(out_dir),
+            "--name-from",
+            "first_name",
+        )
+        assert result.returncode == 0
+        assert (out_dir / "fillable_Guy.pdf").exists()
+        assert (out_dir / "fillable_Alice.pdf").exists()
+
+    def test_batch_name_from_collision_appends_sequence(self, fillable_pdf, tmp_path):
+        csv_file = tmp_path / "data.csv"
+        csv_file.write_text("first_name\nGuy\nGuy\n")
+        out_dir = tmp_path / "filled"
+        result = run_cli(
+            "batch",
+            "-i",
+            str(fillable_pdf),
+            "--csv",
+            str(csv_file),
+            "--output-dir",
+            str(out_dir),
+            "--name-from",
+            "first_name",
+        )
+        assert result.returncode == 0
+        assert (out_dir / "fillable_Guy.pdf").exists()
+        assert (out_dir / "fillable_Guy_002.pdf").exists()
+
+    def test_batch_name_from_missing_column_errors(self, fillable_pdf, tmp_path):
+        csv_file = tmp_path / "data.csv"
+        csv_file.write_text("first_name\nGuy\n")
+        result = run_cli(
+            "batch",
+            "-i",
+            str(fillable_pdf),
+            "--csv",
+            str(csv_file),
+            "--output-dir",
+            str(tmp_path / "filled"),
+            "--name-from",
+            "nickname",
+        )
+        assert result.returncode == 1
+        assert "nickname" in result.stderr
+
+    def test_batch_output_column_names_file(self, fillable_pdf, tmp_path):
+        csv_file = tmp_path / "data.csv"
+        csv_file.write_text("first_name,_output\nGuy,guy_custom\nAlice,alice_custom.pdf\n")
+        out_dir = tmp_path / "filled"
+        result = run_cli(
+            "batch",
+            "-i",
+            str(fillable_pdf),
+            "--csv",
+            str(csv_file),
+            "--output-dir",
+            str(out_dir),
+        )
+        assert result.returncode == 0
+        assert (out_dir / "guy_custom.pdf").exists()
+        assert (out_dir / "alice_custom.pdf").exists()
+
+    def test_batch_map_column_to_field(self, fillable_pdf, tmp_path):
+        csv_file = tmp_path / "data.csv"
+        csv_file.write_text("fname,last_name\nAlice,Smith\n")
+        out_dir = tmp_path / "filled"
+        result = run_cli(
+            "batch",
+            "-i",
+            str(fillable_pdf),
+            "--csv",
+            str(csv_file),
+            "--output-dir",
+            str(out_dir),
+            "--map",
+            "first_name=fname",
+            "--no-flatten",
+            "--strict",
+        )
+        assert result.returncode == 0
+        from pdfiller.core import PDFFiller
+
+        with PDFFiller(out_dir / "fillable_filled_001.pdf") as f:
+            assert f.get_field_value("first_name") == "Alice"
+            assert f.get_field_value("last_name") == "Smith"
+
+    def test_batch_map_missing_column_errors(self, fillable_pdf, tmp_path):
+        csv_file = tmp_path / "data.csv"
+        csv_file.write_text("first_name\nGuy\n")
+        result = run_cli(
+            "batch",
+            "-i",
+            str(fillable_pdf),
+            "--csv",
+            str(csv_file),
+            "--output-dir",
+            str(tmp_path / "filled"),
+            "--map",
+            "first_name=fname",
+        )
+        assert result.returncode == 1
+        assert "fname" in result.stderr
 
 
 class TestNoCommand:

@@ -143,7 +143,7 @@ pdfiller fill -i scan.pdf -j values.json -o filled.pdf
 - Insert an image (PNG, GIF, JPEG) at specific coordinates. Useful for signatures, stamps, or logos. `keep_proportion` maintains aspect ratio within the box. Returns self for chaining.
 
 **`preserve_existing_fields(preserve: bool = True) -> PDFFiller`**
-- Set whether to preserve existing field values
+- Set whether to preserve existing field values. Off by default: `fill_field()` overwrites pre-filled fields unless you call `preserve_existing_fields(True)`. Fields skipped by preserve mode are reported in `skipped_operations` after `save()`.
 
 **`validate_fields(field_names: List[str], raise_error: bool = False) -> Dict[str, bool]`**
 - Validate that field names exist in the PDF

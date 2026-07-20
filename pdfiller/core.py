@@ -113,7 +113,8 @@ class PDFFiller:
         self._checkboxes_to_uncheck: set = set()
         self._text_overlays: list = []
         self._image_overlays: list = []
-        self._preserve_existing = True
+        self._preserve_existing = False
+        self._skipped_operations: List[Dict[str, Any]] = []
         self._saved = False
 
     def __enter__(self):
@@ -316,6 +317,10 @@ class PDFFiller:
         """
         Set whether to preserve existing field values
 
+        Off by default: fill_field() overwrites pre-filled fields. Call
+        preserve_existing_fields(True) to only fill empty fields; skipped
+        fields are reported in skipped_operations after save().
+
         Args:
             preserve: If True, only fill empty fields
 
@@ -385,6 +390,13 @@ class PDFFiller:
                 if field_name in self._fields_to_fill:
                     # Skip if preserving existing and field has value
                     if self._preserve_existing and widget.field_value:
+                        self._skipped_operations.append(
+                            {
+                                "field": field_name,
+                                "reason": "preserve_existing",
+                                "existing_value": widget.field_value,
+                            }
+                        )
                         continue
 
                     value = self._fields_to_fill[field_name]
@@ -622,10 +634,8 @@ class PDFFiller:
     def _apply_image_overlays(self):
         """Write all queued image overlays to their respective pages."""
         for overlay in self._image_overlays:
-            page_num = overlay["page_num"]
-            if page_num < 0 or page_num >= self.page_count:
-                continue
-            page = self.doc[page_num]
+            # insert_image() already validated page_num when the overlay was queued
+            page = self.doc[overlay["page_num"]]
             page.insert_image(
                 fitz.Rect(overlay["rect"]),
                 filename=overlay["image_path"],
@@ -635,10 +645,8 @@ class PDFFiller:
     def _apply_text_overlays(self):
         """Write all queued text overlays to their respective pages."""
         for overlay in self._text_overlays:
-            page_num = overlay["page_num"]
-            if page_num < 0 or page_num >= self.page_count:
-                continue
-            page = self.doc[page_num]
+            # insert_text()/insert_text_box() already validated page_num on queue
+            page = self.doc[overlay["page_num"]]
 
             if overlay["type"] == "point":
                 page.insert_text(
@@ -827,18 +835,55 @@ class PDFFiller:
 
         return results
 
+    def _compute_auto_date_fields(self) -> List[str]:
+        """Names of empty date fields that save() will auto-fill with today's date.
+
+        Mirrors the _apply_field_updates() logic: fields already queued for
+        fill/check/uncheck are never auto-dated.
+        """
+        if not self.auto_fill_dates:
+            return []
+        queued = set(self._fields_to_fill) | self._checkboxes_to_check | self._checkboxes_to_uncheck
+        result = []
+        for page_num in range(self.page_count):
+            for widget in self.doc[page_num].widgets():
+                name = widget.field_name
+                if (
+                    name not in queued
+                    and name not in result
+                    and not widget.field_value
+                    and self._is_date_field(name)
+                ):
+                    result.append(name)
+        return result
+
     @property
     def pending_operations(self) -> Dict[str, Any]:
         """Summary of queued operations not yet saved.
 
         Returns:
-            Dict with 'fields', 'check', and 'uncheck' keys.
+            Dict with 'fields', 'check', 'uncheck', 'text_overlays',
+            'image_overlays', and 'auto_date_fields' keys. 'auto_date_fields'
+            is computed: the empty date fields save() will fill with today's
+            date (empty list when auto_fill_dates is disabled).
         """
         return {
             "fields": dict(self._fields_to_fill),
             "check": set(self._checkboxes_to_check),
             "uncheck": set(self._checkboxes_to_uncheck),
+            "text_overlays": [dict(o) for o in self._text_overlays],
+            "image_overlays": [dict(o) for o in self._image_overlays],
+            "auto_date_fields": self._compute_auto_date_fields(),
         }
+
+    @property
+    def skipped_operations(self) -> List[Dict[str, Any]]:
+        """Operations that save() skipped instead of applying.
+
+        Populated during save(); empty before. Each entry has 'field',
+        'reason' (currently only 'preserve_existing'), and 'existing_value'.
+        """
+        return list(self._skipped_operations)
 
     def __repr__(self):
         return f"PDFFiller(pdf='{self.pdf_path.name}', pages={self.page_count})"

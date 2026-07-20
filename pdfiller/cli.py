@@ -7,9 +7,10 @@ import csv
 import io
 import json
 import logging
+import re
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from .core import PDFFiller
 from .exceptions import PDFFillerError
@@ -271,6 +272,8 @@ def fill_command(args):
 
             # Dry run: show what would be filled without saving
             if args.dry_run:
+                auto_date_fields = ops.get("auto_date_fields", [])
+                unchecks = ops.get("uncheck", [])
                 print(f"Dry run for {args.input}:")
                 if ops["fields"]:
                     for name, value in ops["fields"].items():
@@ -278,10 +281,16 @@ def fill_command(args):
                 if ops["check"]:
                     for name in ops["check"]:
                         print(f"  {name} = [checked]")
+                for name in unchecks:
+                    print(f"  {name} = [unchecked]")
+                for name in auto_date_fields:
+                    print(f"  {name} = [auto-date: today]")
                 overlay_lines = _describe_overlays(data)
                 for line in overlay_lines:
                     print(f"  {line}")
-                if not ops["fields"] and not ops["check"] and not overlay_lines:
+                if not any(
+                    [ops["fields"], ops["check"], unchecks, auto_date_fields, overlay_lines]
+                ):
                     print("  (no fields to fill)")
                 return
 
@@ -308,21 +317,20 @@ def fill_command(args):
 
                 if filler.auto_fill_dates:
                     print("  Auto-fill dates: enabled (empty date fields will use today's date)")
-
-                if args.preserve_existing:
-                    existing_fields = filler.list_fields()
-                    skipped = [
-                        f["name"]
-                        for f in existing_fields
-                        if f["value"] and f["name"] in ops["fields"]
-                    ]
-                    if skipped:
-                        print("  Skipped (preserve existing):")
-                        for name in skipped:
-                            print(f"    {name}")
+                    auto_date_fields = ops.get("auto_date_fields", [])
+                    for name in auto_date_fields:
+                        print(f"    {name} = [auto-date: today]")
 
             # Save the filled PDF
             output_path = filler.save(args.output, flatten=args.flatten)
+
+            # Report operations the save skipped (e.g. preserve-existing)
+            if verbose:
+                for entry in filler.skipped_operations:
+                    print(
+                        f"  Skipped {entry['field']} (kept existing value "
+                        f"'{entry['existing_value']}')"
+                    )
             summary = f"{filled_count} fields, {checked_count} checkboxes"
             if overlay_count:
                 summary += f", {overlay_count} overlays"
@@ -467,6 +475,52 @@ def defaults_command(args):
         sys.exit(1)
 
 
+def _sanitize_filename_part(value: str) -> str:
+    """Make a CSV cell value safe to embed in an output filename."""
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip()).strip("._")
+
+
+def _batch_output_path(
+    output_dir: Path, stem: str, row, name_from: Optional[str], seq: int, used: set
+) -> Path:
+    """Resolve the output path for one batch row.
+
+    Naming precedence: reserved '_output' CSV column, then --name-from column,
+    then the default '<stem>_filled_<seq>.pdf'. Collisions with earlier rows
+    get the sequence number appended.
+    """
+    name = None
+    override = (row.get("_output") or "").strip()
+    if override:
+        if not override.lower().endswith(".pdf"):
+            override += ".pdf"
+        name = override
+    elif name_from:
+        part = _sanitize_filename_part(row.get(name_from) or "")
+        if part:
+            name = f"{stem}_{part}.pdf"
+
+    if name is None:
+        name = f"{stem}_filled_{seq:03d}.pdf"
+    elif name in used:
+        name = f"{Path(name).stem}_{seq:03d}.pdf"
+
+    used.add(name)
+    return output_dir / name
+
+
+def _parse_field_maps(map_args) -> Dict[str, str]:
+    """Parse --map field=column arguments into a {field: column} dict."""
+    maps = {}
+    for spec in map_args or []:
+        if "=" not in spec:
+            print(f"Error: Invalid map format '{spec}', expected field=column", file=sys.stderr)
+            sys.exit(1)
+        field, column = spec.split("=", 1)
+        maps[field] = column
+    return maps
+
+
 def batch_command(args):
     """Fill a PDF once per row in a CSV file, producing one output PDF per row."""
     csv_path = Path(args.csv)
@@ -479,6 +533,8 @@ def batch_command(args):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     stem = input_path.stem
+    field_maps = _parse_field_maps(getattr(args, "map", None))
+    name_from = getattr(args, "name_from", None)
 
     try:
         with open(csv_path, newline="") as f:
@@ -492,12 +548,28 @@ def batch_command(args):
         print("Error: CSV file has no data rows", file=sys.stderr)
         sys.exit(1)
 
+    if name_from and name_from not in rows[0]:
+        print(f"Error: --name-from column '{name_from}' not in CSV header", file=sys.stderr)
+        sys.exit(1)
+
+    missing_map_columns = [c for c in field_maps.values() if c not in rows[0]]
+    if missing_map_columns:
+        print(
+            f"Error: --map column(s) not in CSV header: {', '.join(missing_map_columns)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Columns consumed by --map fill their mapped field instead of one
+    # matching their own name; '_output' is reserved for output naming.
+    consumed_columns = set(field_maps.values()) | {"_output"}
+
     filled = 0
     errors = []
+    used_names: set = set()
 
     for i, row in enumerate(rows, start=1):
-        seq = f"{i:03d}"
-        output_file = output_dir / f"{stem}_filled_{seq}.pdf"
+        output_file = _batch_output_path(output_dir, stem, row, name_from, i, used_names)
         try:
             with PDFFiller(
                 args.input,
@@ -509,6 +581,11 @@ def batch_command(args):
                 # the cell holds the checkbox export value (e.g. "On"/"Off"), not
                 # an arbitrary truthy string.
                 for field_name, value in row.items():
+                    if value is None or field_name in consumed_columns:
+                        continue
+                    filler.fill_field(field_name, value)
+                for field_name, column in field_maps.items():
+                    value = row.get(column)
                     if value is None:
                         continue
                     filler.fill_field(field_name, value)
@@ -690,6 +767,19 @@ Examples:
         "--strict",
         action="store_true",
         help="Fail a row when a CSV column does not match a form field",
+    )
+    batch_parser.add_argument(
+        "--name-from",
+        help=(
+            "Name each output PDF from this CSV column "
+            "(e.g. --name-from name yields <stem>_<value>.pdf); "
+            "a reserved '_output' CSV column overrides this per row"
+        ),
+    )
+    batch_parser.add_argument(
+        "--map",
+        action="append",
+        help="Map a form field to a CSV column (field=column); repeatable",
     )
 
     # Inspect command

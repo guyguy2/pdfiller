@@ -18,31 +18,11 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 ## 2. Correctness and Safety
 
-### Medium priority
-
-- **C8. Library and CLI disagree on preserve-existing default** (M)
-  Library defaults to `_preserve_existing = True` (fill only empty fields, `core.py:115`); CLI passes `args.preserve_existing`, default False (overwrite). A library user calling `fill_field()` on a pre-filled field is silently ignored - surprising for an API named "fill".
-  *Fix:* flip the library default to False (opt in via `preserve_existing_fields(True)`); document as breaking change in CHANGELOG; bump minor version. Alternative: keep and document prominently in README + docstring.
-  *Verify:* tests updated for chosen default; README and USAGE describe it.
-
-- **C9. Silent skips are invisible** (M)
-  Preserve-existing skips, and out-of-range page `continue`s in `_apply_image_overlays`/`_apply_text_overlays` (dead defensiveness - `insert_*` already validates pages), report nothing.
-  *Fix:* collect skipped operations during save; expose as return metadata or log; show in `fill --verbose`. Remove the dead page checks.
-  *Verify:* verbose fill on a pre-filled field prints a skip line.
-
-- **C12. `pending_operations` and `--dry-run` omit half the state** (M)
-  Neither includes unchecks, text overlays, image overlays, or auto-date targets that `save()` will fill (`core.py:825`, `cli.py:169`).
-  *Fix:* extend `pending_operations` with `uncheck`, `text_overlays`, `image_overlays`, `auto_date_fields` (computed); render all in dry-run output.
-  *Verify:* dry-run on a PDF with an empty `sign_date` lists it as auto-date.
+(all current items completed - see appendix)
 
 ---
 
 ## 3. UX and CLI Usability
-
-- **U4. Batch output naming and column mapping** (M)
-  Outputs are `stem_filled_001.pdf`; no way to name from row data or map mismatched CSV headers.
-  *Fix:* support a reserved `_output` CSV column or `--name-from <column>`; add `--map field=column`; optionally reuse the defaults matcher for fuzzy header matching.
-  *Verify:* batch with `--name-from name` produces `stem_guy.pdf` style names; collision appends sequence.
 
 - **U6. `defaults set` cannot store lists** (S)
   `_set_nested` only stores strings; multi-value defaults require hand-editing JSON.
@@ -162,8 +142,12 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 ## Appendix: Completed Items
 
-From this improvement plan (completed 2026-07-20):
+From this improvement plan (completed 2026-07-20, released as 1.2.0):
 
+- **C8** - Library preserve-existing default flipped to False (overwrite), matching the CLI; opt in via `preserve_existing_fields(True)`; breaking change, version bumped to 1.2.0
+- **C9** - Preserve-existing skips collected during save and exposed via `skipped_operations`; `fill --verbose` prints a skip line per field; dead page-range checks removed from `_apply_text_overlays`/`_apply_image_overlays`
+- **C12** - `pending_operations` extended with `text_overlays`, `image_overlays`, and computed `auto_date_fields`; `--dry-run` renders unchecks and auto-date targets
+- **U4** - `batch --name-from <column>` (collision appends row sequence), reserved `_output` CSV column for per-row names, and `--map field=column` for mismatched CSV headers
 - **U3** - `list` table format now shows "Page: N" for every field and "Options: [...]" for dropdown/radio/listbox fields
 - **U5** - `fill --use-defaults` prints a stderr notice naming skipped multi-value fields and their stored options
 - **C10** - CLI configures a stderr logging handler for the `pdfiller` logger, so a corrupt defaults file prints "Warning: Ignoring invalid JSON in defaults file <path>: <error>" instead of being silent

@@ -112,13 +112,16 @@ with PDFFiller("form.pdf") as filler:
 
 ### Preserve Existing Values
 
-Only fill empty fields, keep pre-filled values:
+Only fill empty fields, keep pre-filled values. This is opt-in: without it,
+`fill_field()` overwrites pre-filled fields. After `save()`, the
+`skipped_operations` property lists any fields preserve mode skipped.
 
 ```python
 with PDFFiller("partially_filled.pdf") as filler:
     filler.preserve_existing_fields(True)
     filler.fill_fields(my_data)
     filler.save("output.pdf")
+    print(filler.skipped_operations)
 ```
 
 ### Validate Field Names
@@ -249,6 +252,9 @@ pdfiller fill -i form.pdf \
 
 ### Preserve Existing Values
 
+By default, filling overwrites pre-filled fields. Pass `--preserve-existing`
+to only fill empty fields; with `-v`, skipped fields are listed after saving.
+
 ```bash
 pdfiller fill -i form.pdf -j values.json -o filled.pdf --preserve-existing
 ```
@@ -278,6 +284,20 @@ row when a CSV column does not match a form field.
 ```bash
 pdfiller fill -i form.pdf -f "nosuchfield=x" -o filled.pdf --strict
 pdfiller batch -i form.pdf --csv data.csv --output-dir ./filled/ --strict
+```
+
+### Batch Output Naming and Column Mapping
+
+By default, batch outputs are named `<stem>_filled_001.pdf`, `_002`, and so
+on. `--name-from <column>` names each output from a CSV column value
+(`form_Guy.pdf`); name collisions get the row's sequence number appended. A
+reserved `_output` CSV column overrides the name per row (it is not filled
+into the form). `--map field=column` fills a form field from a differently
+named CSV column; mapped columns are not also filled under their own name.
+
+```bash
+pdfiller batch -i form.pdf --csv data.csv --output-dir ./filled/ --name-from name
+pdfiller batch -i form.pdf --csv data.csv --output-dir ./filled/ --map first_name=fname
 ```
 
 ## Common Patterns

@@ -45,6 +45,7 @@ def _make_filler_mock(fields=None, page_count=1, pending=None, layouts=None):
     filler.page_count = page_count
     filler.auto_fill_dates = True
     filler.pending_operations = pending or {"fields": {}, "check": [], "uncheck": []}
+    filler.skipped_operations = []
     filler.save.return_value = "/tmp/output.pdf"
     filler.has_form_fields.return_value = bool(fields)
 

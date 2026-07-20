@@ -671,6 +671,88 @@ class TestPendingOperations:
             ops["fields"]["first_name"] = "Bob"
             assert f.pending_operations["fields"]["first_name"] == "Alice"
 
+    def test_includes_overlays(self, non_fillable_pdf, tiny_png):
+        with PDFFiller(non_fillable_pdf) as f:
+            f.insert_text("Hi", 100, 200)
+            f.insert_text_box("Addr", 100, 220, 300, 260)
+            f.insert_image(tiny_png, 100, 300, 200, 350)
+            ops = f.pending_operations
+            assert len(ops["text_overlays"]) == 2
+            assert len(ops["image_overlays"]) == 1
+            assert ops["text_overlays"][0]["type"] == "point"
+            assert ops["text_overlays"][1]["type"] == "box"
+
+    def test_auto_date_fields_computed(self, fillable_pdf_with_dates):
+        with PDFFiller(fillable_pdf_with_dates) as f:
+            ops = f.pending_operations
+            assert set(ops["auto_date_fields"]) == {"sign_date", "date_signed"}
+
+    def test_auto_date_excludes_queued_fields(self, fillable_pdf_with_dates):
+        with PDFFiller(fillable_pdf_with_dates) as f:
+            f.fill_field("sign_date", "1/1/2026")
+            assert f.pending_operations["auto_date_fields"] == ["date_signed"]
+
+    def test_auto_date_empty_when_disabled(self, fillable_pdf_with_dates):
+        with PDFFiller(fillable_pdf_with_dates, auto_fill_dates=False) as f:
+            assert f.pending_operations["auto_date_fields"] == []
+
+
+class TestPreserveExistingDefault:
+    def _make_prefilled(self, fillable_pdf, tmp_path):
+        """Save a copy of fillable_pdf with first_name already filled."""
+        prefilled = tmp_path / "prefilled.pdf"
+        with PDFFiller(fillable_pdf, auto_fill_dates=False) as f:
+            f.fill_field("first_name", "Original")
+            f.save(prefilled, flatten=False)
+        return prefilled
+
+    def test_default_overwrites_existing_value(self, fillable_pdf, tmp_path):
+        prefilled = self._make_prefilled(fillable_pdf, tmp_path)
+        out = tmp_path / "overwritten.pdf"
+        with PDFFiller(prefilled, auto_fill_dates=False) as f:
+            f.fill_field("first_name", "New")
+            f.save(out, flatten=False)
+        with PDFFiller(out) as f:
+            assert f.get_field_value("first_name") == "New"
+
+    def test_preserve_opt_in_keeps_existing_value(self, fillable_pdf, tmp_path):
+        prefilled = self._make_prefilled(fillable_pdf, tmp_path)
+        out = tmp_path / "kept.pdf"
+        with PDFFiller(prefilled, auto_fill_dates=False) as f:
+            f.preserve_existing_fields(True)
+            f.fill_field("first_name", "New")
+            f.save(out, flatten=False)
+        with PDFFiller(out) as f:
+            assert f.get_field_value("first_name") == "Original"
+
+
+class TestSkippedOperations:
+    def test_empty_before_save(self, fillable_pdf):
+        with PDFFiller(fillable_pdf) as f:
+            f.preserve_existing_fields(True)
+            f.fill_field("first_name", "New")
+            assert f.skipped_operations == []
+
+    def test_preserve_skip_reported(self, fillable_pdf, tmp_path):
+        prefilled = tmp_path / "prefilled.pdf"
+        with PDFFiller(fillable_pdf, auto_fill_dates=False) as f:
+            f.fill_field("first_name", "Original")
+            f.save(prefilled, flatten=False)
+
+        out = tmp_path / "kept.pdf"
+        with PDFFiller(prefilled, auto_fill_dates=False) as f:
+            f.preserve_existing_fields(True)
+            f.fill_field("first_name", "New")
+            f.fill_field("last_name", "Filled")
+            f.save(out, flatten=False)
+            assert f.skipped_operations == [
+                {
+                    "field": "first_name",
+                    "reason": "preserve_existing",
+                    "existing_value": "Original",
+                }
+            ]
+
 
 # ---------------------------------------------------------------------------
 # 1. Size/resource limits

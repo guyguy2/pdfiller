@@ -5,10 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.0] - 2026-07-20
+
+### Changed (breaking)
+
+- Library preserve-existing mode is now off by default: `fill_field()` overwrites pre-filled fields, matching the CLI default and the intuitive meaning of "fill". Call `preserve_existing_fields(True)` to restore the old behavior of only filling empty fields.
 
 ### Added
 
+- `skipped_operations` property on `PDFFiller`: after `save()`, lists fields skipped by preserve-existing mode with their kept values; `fill --verbose` prints a skip line for each
+- `pending_operations` now includes `text_overlays`, `image_overlays`, and computed `auto_date_fields`; `fill --dry-run` lists unchecks and the date fields that will be auto-filled with today's date
+- `batch --name-from <column>` names each output PDF from a CSV column value (collisions get the row sequence number appended); a reserved `_output` CSV column overrides the name per row
+- `batch --map field=column` fills a form field from a differently named CSV column
 - `list` table format now shows the page number for every field and the options list for dropdown/radio/listbox fields
 - `fill --use-defaults` prints a stderr notice naming fields skipped because the stored default holds multiple values, along with the stored options
 - CLI now routes library warnings to stderr, so a corrupt defaults file is reported (file path and parse error) instead of silently appearing as "No defaults stored"

@@ -1,6 +1,6 @@
 [project]
 name = "pdfiller"
-version = "1.1.0"
+version = "1.2.0"
 description = "Simple library for filling PDF forms with automatic flattening"
 readme = "README.md"
 license = "MIT"
