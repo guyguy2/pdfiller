@@ -175,6 +175,21 @@ class TestFillCommand:
         assert "Dry run" in result.stdout
         assert "first_name = Alice" in result.stdout
 
+    def test_dry_run_redact_masks_values(self, fillable_pdf):
+        result = run_cli(
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-f",
+            "first_name=Alice",
+            "--dry-run",
+            "--redact",
+        )
+        assert result.returncode == 0
+        assert "first_name" in result.stdout
+        assert "Alice" not in result.stdout
+        assert "[redacted, 5 chars]" in result.stdout
+
     def test_dry_run_lists_auto_date_fields(self, fillable_pdf_with_dates):
         result = run_cli(
             "fill",
@@ -310,6 +325,24 @@ class TestFillCommand:
         )
         assert result.returncode == 0
         assert "Auto-fill dates: enabled" in result.stdout
+
+    def test_verbose_redact_masks_values(self, fillable_pdf, tmp_path):
+        out = tmp_path / "filled.pdf"
+        result = run_cli(
+            "fill",
+            "-i",
+            str(fillable_pdf),
+            "-o",
+            str(out),
+            "-f",
+            "first_name=Alice",
+            "--verbose",
+            "--redact",
+        )
+        assert result.returncode == 0
+        assert "first_name" in result.stdout
+        assert "Alice" not in result.stdout
+        assert "[redacted, 5 chars]" in result.stdout
 
 
 class TestFillOverlays:

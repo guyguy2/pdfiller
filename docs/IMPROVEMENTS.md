@@ -85,11 +85,6 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 ## 6. Security and Privacy
 
-- **S2. Values leak into logs and shell history** (S)
-  `fill --verbose` and dry-run print full field values - fine interactively, but persisted when scripted or run in CI.
-  *Fix:* `--redact` flag printing masked values or lengths.
-  *Verify:* `--dry-run --redact` shows field names but no values.
-
 ---
 
 ## 7. Feature Ideas
@@ -124,6 +119,7 @@ From this improvement plan (completed 2026-07-20, unreleased):
 - **A4** - CLI dispatch now uses `set_defaults(func=...)` per subparser and calls `args.func(args)`; the command if-chain is gone (one special case remains for the `defaults` no-action help). Internal refactor, no user-facing change
 - **A2** - Added `reset_matchers()` (exported from `pdfiller`) restoring the built-in exact/normalized matchers; added an autouse `_isolate_matchers` conftest fixture so matcher-registry state no longer leaks across tests
 - **A6** - New `pdfiller/fields.py` centralizes widget-type predicates (`is_choice_widget`, `is_checkbox`, `is_checkbox_type`, `is_push_button_type`); `core` and `cli` import them, removing the duplicated choice tuples and CLI `_CHECKBOX_FIELD_TYPES`/`_PUSH_BUTTON_FIELD_TYPES`. Internal refactor, no user-facing change
+- **S2** - `fill --redact` masks field values in `--verbose`/`--dry-run` output (shows names and `[redacted, N chars]`), keeping values out of logs and shell history; overlay text is redacted too
 
 From this improvement plan (completed 2026-07-20, released as 1.2.0):
 

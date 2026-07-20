@@ -87,16 +87,25 @@ def _queue_overlays(filler: PDFFiller, data: Dict[str, Any]) -> int:
     return count
 
 
-def _describe_overlays(data: Dict[str, Any]) -> list:
+def _redact_value(value: Any) -> str:
+    """Mask a field value for logging, revealing only its length.
+
+    Used by --redact so field names still appear in --verbose/--dry-run output
+    while the values themselves stay out of logs and shell history.
+    """
+    return f"[redacted, {len(str(value))} chars]"
+
+
+def _describe_overlays(data: Dict[str, Any], redact: bool = False) -> list:
     """Human-readable one-line descriptions of overlay entries for dry-run/verbose."""
     lines = []
     for entry in data.get("texts", []):
-        lines.append(
-            f'text "{entry["text"]}" at ({entry["x"]}, {entry["y"]}) on page {entry.get("page", 0)}'
-        )
+        text = _redact_value(entry["text"]) if redact else f'"{entry["text"]}"'
+        lines.append(f"text {text} at ({entry['x']}, {entry['y']}) on page {entry.get('page', 0)}")
     for entry in data.get("boxes", []):
+        text = _redact_value(entry["text"]) if redact else f'"{entry["text"]}"'
         lines.append(
-            f'text box "{entry["text"]}" in '
+            f"text box {text} in "
             f"({entry['x0']}, {entry['y0']}, {entry['x1']}, {entry['y1']}) "
             f"on page {entry.get('page', 0)}"
         )
@@ -274,6 +283,8 @@ def fill_command(args):
             filled_count = len(ops["fields"])
             checked_count = len(ops["check"])
 
+            redact = getattr(args, "redact", False)
+
             # Dry run: show what would be filled without saving
             if args.dry_run:
                 auto_date_fields = ops.get("auto_date_fields", [])
@@ -281,7 +292,8 @@ def fill_command(args):
                 print(f"Dry run for {args.input}:")
                 if ops["fields"]:
                     for name, value in ops["fields"].items():
-                        print(f"  {name} = {value}")
+                        shown = _redact_value(value) if redact else value
+                        print(f"  {name} = {shown}")
                 if ops["check"]:
                     for name in ops["check"]:
                         print(f"  {name} = [checked]")
@@ -289,7 +301,7 @@ def fill_command(args):
                     print(f"  {name} = [unchecked]")
                 for name in auto_date_fields:
                     print(f"  {name} = [auto-date: today]")
-                overlay_lines = _describe_overlays(data)
+                overlay_lines = _describe_overlays(data, redact=redact)
                 for line in overlay_lines:
                     print(f"  {line}")
                 if not any(
@@ -306,14 +318,15 @@ def fill_command(args):
                 if ops["fields"]:
                     print("  Fields:")
                     for name, value in ops["fields"].items():
-                        print(f"    {name} = {value}")
+                        shown = _redact_value(value) if redact else value
+                        print(f"    {name} = {shown}")
 
                 if ops["check"]:
                     print("  Checkboxes:")
                     for name in ops["check"]:
                         print(f"    {name} [check]")
 
-                overlay_lines = _describe_overlays(data)
+                overlay_lines = _describe_overlays(data, redact=redact)
                 if overlay_lines:
                     print("  Overlays:")
                     for line in overlay_lines:
@@ -331,10 +344,12 @@ def fill_command(args):
             # Report operations the save skipped (e.g. preserve-existing)
             if verbose:
                 for entry in filler.skipped_operations:
-                    print(
-                        f"  Skipped {entry['field']} (kept existing value "
-                        f"'{entry['existing_value']}')"
+                    existing = (
+                        _redact_value(entry["existing_value"])
+                        if redact
+                        else f"'{entry['existing_value']}'"
                     )
+                    print(f"  Skipped {entry['field']} (kept existing value {existing})")
             summary = f"{filled_count} fields, {checked_count} checkboxes"
             if overlay_count:
                 summary += f", {overlay_count} overlays"
@@ -764,6 +779,11 @@ Examples:
     )
     fill_parser.add_argument(
         "-v", "--verbose", action="store_true", help="Print detailed info about fields being filled"
+    )
+    fill_parser.add_argument(
+        "--redact",
+        action="store_true",
+        help="Mask field values in --verbose/--dry-run output (shows names and lengths only)",
     )
     fill_parser.add_argument(
         "--no-auto-dates",
