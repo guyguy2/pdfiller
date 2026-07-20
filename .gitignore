@@ -10,3 +10,8 @@ build/
 *.temp.pdf
 scratch/
 examples/*_filled.pdf
+# Real-world forms kept locally for manual fills; do not ship (may attract PII fills)
+examples/680-001_AB.pdf
+# Local agent/tooling state, not package source
+.claude/skills/
+.firecrawl/

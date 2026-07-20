@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-20
+
 ### Added
 
+- `fill()` on non-fillable PDFs accepts box and image placement entries (not only point text), inferred from keys or an optional `type` of `text`/`box`/`image`
 - `defaults add <key> <value>` appends a value to a list default, creating a one-element list if the key is absent and promoting an existing string leaf to a two-element list; multi-value defaults no longer require hand-editing JSON
 - `template` now prints to stdout when `-o/--output` is omitted, matching `list` and `export`
 - `reset_matchers()` restores the matcher registry to just the built-in exact and normalized matchers (exported from `pdfiller`); useful for undoing `clear_matchers()` or custom registrations
@@ -23,9 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Opening an encrypted PDF no longer fails outright: it succeeds when the empty or supplied password authenticates, and still raises `PDFReadError` for a wrong or missing password
 - Minimum Python is now 3.9 (3.8 reached end of life in October 2024); type annotations modernized to built-in generics (`dict`/`list`)
 - Switched to the canonical `import pymupdf` throughout, replacing the deprecated `import fitz` alias
-
-### Changed
-
 - Unified read-only command output through a shared `_write_output` helper: `list`, `export`, and `template` all print to stdout by default and write to a file (with a "Saved:" notice) when `-o` is given
 
 ## [1.2.0] - 2026-07-20

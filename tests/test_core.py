@@ -925,12 +925,123 @@ class TestFillMethod:
             f.fill({"Name": "plain string"})
 
     def test_non_fillable_missing_text_in_dict_raises(self, non_fillable_pdf):
-        """fill() on non-fillable PDF with dict missing 'text' raises PDFFillerError."""
+        """fill() with dict missing text/path still raises PDFFillerError."""
         with (
             PDFFiller(non_fillable_pdf) as f,
-            pytest.raises(PDFFillerError, match="coordinate-based"),
+            pytest.raises(PDFFillerError, match=r"text.*box.*image"),
         ):
             f.fill({"Name": {"x": 100, "y": 200}})
+
+    def test_non_fillable_fill_places_text_box(self, non_fillable_pdf, tmp_path):
+        """fill() with a box entry queues BoxTextOverlay and places text."""
+        from pdfiller.overlays import BoxTextOverlay
+
+        out = tmp_path / "box_filled.pdf"
+        with PDFFiller(non_fillable_pdf) as f:
+            f.fill(
+                {
+                    "Address": {
+                        "text": "Box Content",
+                        "x0": 100,
+                        "y0": 300,
+                        "x1": 400,
+                        "y1": 350,
+                    },
+                }
+            )
+            assert len(f._text_overlays) == 1
+            overlay = f._text_overlays[0]
+            assert isinstance(overlay, BoxTextOverlay)
+            assert overlay.type == "box"
+            assert overlay.rect == (100, 300, 400, 350)
+            f.save(out, flatten=False)
+
+        doc = pymupdf.open(str(out))
+        assert "Box Content" in doc[0].get_text()
+        doc.close()
+
+    def test_non_fillable_fill_places_image(self, non_fillable_pdf, tiny_png, tmp_path):
+        """fill() with an image entry queues ImageOverlay and saves."""
+        from pdfiller.overlays import ImageOverlay
+
+        out = tmp_path / "image_filled.pdf"
+        with PDFFiller(non_fillable_pdf) as f:
+            f.fill(
+                {
+                    "Signature": {
+                        "path": str(tiny_png),
+                        "x0": 100,
+                        "y0": 400,
+                        "x1": 300,
+                        "y1": 450,
+                    },
+                }
+            )
+            assert len(f._image_overlays) == 1
+            overlay = f._image_overlays[0]
+            assert isinstance(overlay, ImageOverlay)
+            assert overlay.image_path == str(tiny_png)
+            assert overlay.rect == (100, 400, 300, 450)
+            f.save(out, flatten=False)
+
+        assert out.exists()
+        assert out.stat().st_size > 0
+
+    def test_non_fillable_fill_mixed_point_box_image(self, non_fillable_pdf, tiny_png, tmp_path):
+        """fill() accepts point text, box, and image entries in one call."""
+        from pdfiller.overlays import BoxTextOverlay, ImageOverlay, PointTextOverlay
+
+        out = tmp_path / "mixed_filled.pdf"
+        with PDFFiller(non_fillable_pdf) as f:
+            f.fill(
+                {
+                    "Name": {"text": "Jane Doe", "x": 200, "y": 150},
+                    "Address": {
+                        "text": "123 Main St",
+                        "x0": 100,
+                        "y0": 200,
+                        "x1": 400,
+                        "y1": 260,
+                    },
+                    "Signature": {
+                        "path": str(tiny_png),
+                        "x0": 100,
+                        "y0": 500,
+                        "x1": 300,
+                        "y1": 550,
+                    },
+                }
+            )
+            assert len(f._text_overlays) == 2
+            assert isinstance(f._text_overlays[0], PointTextOverlay)
+            assert isinstance(f._text_overlays[1], BoxTextOverlay)
+            assert len(f._image_overlays) == 1
+            assert isinstance(f._image_overlays[0], ImageOverlay)
+            f.save(out, flatten=False)
+
+        doc = pymupdf.open(str(out))
+        text = doc[0].get_text()
+        assert "Jane Doe" in text
+        assert "123 Main St" in text
+        doc.close()
+
+    def test_non_fillable_fill_explicit_type_box(self, non_fillable_pdf):
+        """fill() respects type='box' with rect coords."""
+        from pdfiller.overlays import BoxTextOverlay
+
+        with PDFFiller(non_fillable_pdf) as f:
+            f.fill(
+                {
+                    "Notes": {
+                        "type": "box",
+                        "text": "Wrapped notes",
+                        "rect": (50, 50, 250, 120),
+                    },
+                }
+            )
+            assert len(f._text_overlays) == 1
+            assert isinstance(f._text_overlays[0], BoxTextOverlay)
+            assert f._text_overlays[0].rect == (50, 50, 250, 120)
 
     def test_fill_returns_self(self, fillable_pdf):
         """fill() returns self for method chaining."""

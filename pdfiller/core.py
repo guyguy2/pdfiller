@@ -249,20 +249,33 @@ class PDFFiller:
         For fillable PDFs (with AcroForm fields): delegates to fill_fields()
         to set form field values by name.
 
-        For non-fillable PDFs: expects each key to map to a dict with
-        placement coordinates, e.g.::
+        For non-fillable PDFs: each key maps to a placement dict. Three forms
+        are accepted; an optional ``"type"`` of ``"text"``, ``"box"``, or
+        ``"image"`` forces a form, otherwise the form is inferred from keys::
 
             {
+                # Point text
                 "Name": {"text": "Jane Doe", "x": 200, "y": 150, "page": 0},
-                "Date": {"text": "3/15/2026", "x": 200, "y": 200, "page": 0},
+                # Wrapped text box
+                "Address": {
+                    "text": "123 Main St\\nAnytown",
+                    "x0": 100, "y0": 200, "x1": 400, "y1": 260,
+                    "page": 0,
+                },
+                # Image (e.g. signature); "path" or "image" for the file
+                "Signature": {
+                    "path": "sig.png",
+                    "x0": 100, "y0": 500, "x1": 300, "y1": 550,
+                },
             }
 
-        Optional keys per entry: font_size (default 10), font_name (default
-        "helv"), color (default (0,0,0)).
+        Point/box optional keys: font_size (default 10), font_name (default
+        "helv"), color (default (0,0,0)). Box coords may also be given as
+        ``"rect": (x0, y0, x1, y1)``. Image optional key: keep_proportion
+        (default True).
 
         Args:
-            data: Field values (fillable) or coordinate-based text placements
-                (non-fillable).
+            data: Field values (fillable) or placement entries (non-fillable).
 
         Returns:
             Self for method chaining
@@ -271,22 +284,104 @@ class PDFFiller:
             self.fill_fields(data)
         else:
             for label, spec in data.items():
-                if not isinstance(spec, dict) or "text" not in spec:
+                if not isinstance(spec, dict):
                     raise PDFFillerError(
                         f"Non-fillable PDF requires coordinate-based data for "
-                        f"'{label}'. Expected a dict with at least 'text', 'x', "
-                        f"and 'y' keys."
+                        f"'{label}'. Expected a dict for a text, box, or image "
+                        f"placement."
                     )
-                self.insert_text(
-                    text=spec["text"],
-                    x=spec.get("x", 0),
-                    y=spec.get("y", 0),
-                    page_num=spec.get("page", 0),
-                    font_size=spec.get("font_size", 10),
-                    font_name=spec.get("font_name", "helv"),
-                    color=spec.get("color", (0, 0, 0)),
-                )
+                self._queue_fill_placement(label, spec)
         return self
+
+    def _queue_fill_placement(self, label: str, spec: dict[str, Any]) -> None:
+        """Queue one non-fillable placement from a fill() entry dict.
+
+        Discrimination (type key is optional):
+        - image if type=="image" or "path"/"image" key present
+        - box if type=="box" or (text present and x0/rect present)
+        - point text if text present
+        - else raise with accepted forms listed
+        """
+        entry_type = spec.get("type")
+        image_path = spec.get("path", spec.get("image"))
+
+        if entry_type == "image" or "path" in spec or "image" in spec:
+            if not image_path:
+                raise PDFFillerError(
+                    f"Non-fillable image placement for '{label}' requires a "
+                    f"'path' (or 'image') key."
+                )
+            x0, y0, x1, y1 = self._placement_rect(label, spec, kind="image")
+            self.insert_image(
+                image_path,
+                x0,
+                y0,
+                x1,
+                y1,
+                page_num=spec.get("page", 0),
+                keep_proportion=spec.get("keep_proportion", True),
+            )
+            return
+
+        if entry_type == "box" or ("text" in spec and ("x0" in spec or "rect" in spec)):
+            if "text" not in spec:
+                raise PDFFillerError(
+                    f"Non-fillable box placement for '{label}' requires a 'text' key."
+                )
+            x0, y0, x1, y1 = self._placement_rect(label, spec, kind="box")
+            self.insert_text_box(
+                text=spec["text"],
+                x0=x0,
+                y0=y0,
+                x1=x1,
+                y1=y1,
+                page_num=spec.get("page", 0),
+                font_size=spec.get("font_size", 10),
+                font_name=spec.get("font_name", "helv"),
+                color=spec.get("color", (0, 0, 0)),
+            )
+            return
+
+        if "text" in spec:
+            self.insert_text(
+                text=spec["text"],
+                x=spec.get("x", 0),
+                y=spec.get("y", 0),
+                page_num=spec.get("page", 0),
+                font_size=spec.get("font_size", 10),
+                font_name=spec.get("font_name", "helv"),
+                color=spec.get("color", (0, 0, 0)),
+            )
+            return
+
+        raise PDFFillerError(
+            f"Non-fillable PDF requires coordinate-based data for '{label}'. "
+            f"Expected a dict for a text (keys: text, x, y), box (keys: text, "
+            f"x0, y0, x1, y1 or rect), or image (keys: path, x0, y0, x1, y1 or "
+            f"rect) placement."
+        )
+
+    @staticmethod
+    def _placement_rect(
+        label: str, spec: dict[str, Any], *, kind: str
+    ) -> tuple[float, float, float, float]:
+        """Resolve x0/y0/x1/y1 from individual keys or a rect tuple."""
+        if "rect" in spec:
+            rect = spec["rect"]
+            try:
+                return (rect[0], rect[1], rect[2], rect[3])
+            except (TypeError, IndexError) as e:
+                raise PDFFillerError(
+                    f"Non-fillable {kind} placement for '{label}' has invalid "
+                    f"'rect'; expected (x0, y0, x1, y1)."
+                ) from e
+        missing = [k for k in ("x0", "y0", "x1", "y1") if k not in spec]
+        if missing:
+            raise PDFFillerError(
+                f"Non-fillable {kind} placement for '{label}' requires "
+                f"x0/y0/x1/y1 or rect. Missing: {', '.join(missing)}."
+            )
+        return (spec["x0"], spec["y0"], spec["x1"], spec["y1"])
 
     def check_box(self, field_name: str) -> "PDFFiller":
         """

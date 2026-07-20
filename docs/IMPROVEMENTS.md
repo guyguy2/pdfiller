@@ -12,7 +12,10 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 | Order | Item | Why first |
 |-------|------|-----------|
-| 1 | Everything else | Opportunistic |
+| 1 | F6 (config file) if product work continues | Natural home for date format and other defaults |
+| 2 | Other F* ideas | Opportunistic backlog |
+
+All C/U/A/P/S plan items from the 2026-07 review are complete (see appendix).
 
 ---
 
@@ -24,27 +27,25 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 ## 3. UX and CLI Usability
 
+(all current items completed - see appendix)
+
 ---
 
 ## 4. Architecture and Extensibility
 
-- **A5. `fill()` non-fillable spec only supports point text** (S)
-  Coordinate-dict schema accepts `text/x/y` but not the box form or images, so the high-level API covers less than the low-level one (`core.py:228`).
-  *Fix:* extend spec with `"box"` and `"image"` entry types; align with the U1 JSON schema so library and CLI share one format.
-  *Verify:* `fill()` places a wrapped text box and an image on a non-fillable fixture.
+(all current items completed - see appendix)
 
 ---
 
 ## 5. Packaging, Tooling, and Tests
 
-- **P8. Example PDFs may contain real data** (S) - partially done 2026-07-20
-  Inspection confirmed `examples/680-001_AB_filled.pdf` contains real PII (names, DOB, phone). Neither PDF was ever committed, so no history scrub is needed. `examples/*_filled.pdf` is now in .gitignore.
-  *Remaining:* decide fate of the blank `examples/680-001_AB.pdf` (real-world form, still untracked) - replace with a sanitized demo form or drop it.
-  *Verify:* repo contains no PII; examples/ holds only sanitized demo files.
+(all current items completed - see appendix)
 
 ---
 
 ## 6. Security and Privacy
+
+(all current items completed - see appendix)
 
 ---
 
@@ -73,8 +74,10 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 ## Appendix: Completed Items
 
-From this improvement plan (completed 2026-07-20, unreleased):
+From this improvement plan (completed 2026-07-20, released as 1.3.0):
 
+- **A5** - `fill()` non-fillable placements accept point text, wrapped boxes, and images; discrimination via optional `type` or keys (`path`/`image` for images, `x0`/`rect` for boxes); helpers `_queue_fill_placement` and `_placement_rect`
+- **P8** - Filled example outputs stay out of git via `examples/*_filled.pdf`; blank real-world form `examples/680-001_AB.pdf` is gitignored (local use only, not shipped); local tooling dirs `.claude/skills/` and `.firecrawl/` gitignored. Tracked examples remain the sanitized demo only. No history scrub needed (PII never committed)
 - **U6** - `defaults add <key> <value>` appends to a list default (creates a one-element list if absent, promotes an existing string leaf to a two-element list); new `_add_nested` helper backs it
 - **U9** - Unified read-only output via a shared `_write_output(text, path)` helper; `list`, `export`, and `template` all default to stdout and accept `-o`; `template` no longer requires `-o`
 - **A4** - CLI dispatch now uses `set_defaults(func=...)` per subparser and calls `args.func(args)`; the command if-chain is gone (one special case remains for the `defaults` no-action help). Internal refactor, no user-facing change
