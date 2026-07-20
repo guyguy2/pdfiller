@@ -418,6 +418,31 @@ def _set_nested(data: Dict[str, Any], key: str, value: str) -> None:
     current[parts[-1]] = value
 
 
+def _add_nested(data: Dict[str, Any], key: str, value: str) -> None:
+    """Append a value to a list in a nested dict using dot notation.
+
+    Creates a one-element list if the key is absent. Promotes an existing
+    string leaf to a two-element list. Appends if the leaf is already a list.
+    """
+    parts = key.split(".")
+    current = data
+    for part in parts[:-1]:
+        current = current.setdefault(part, {})
+    last = parts[-1]
+    existing = current.get(last)
+    if existing is None:
+        current[last] = [value]
+    elif isinstance(existing, str):
+        current[last] = [existing, value]
+    elif isinstance(existing, list):
+        existing.append(value)
+    else:
+        raise PDFFillerError(
+            f"Cannot add to '{key}': existing value is a {type(existing).__name__}, "
+            "not a string or list"
+        )
+
+
 def _remove_nested(data: Dict[str, Any], key: str) -> bool:
     """Remove a value from a nested dict using dot notation. Returns True if removed."""
     parts = key.split(".")
@@ -460,6 +485,12 @@ def defaults_command(args):
             _set_nested(data, args.key, args.value)
             save_defaults(data)
             print(f"Set {args.key} = {args.value}")
+
+        elif action == "add":
+            data = load_defaults()
+            _add_nested(data, args.key, args.value)
+            save_defaults(data)
+            print(f"Added {args.value!r} to {args.key}")
 
         elif action == "remove":
             data = load_defaults()
@@ -812,6 +843,12 @@ Examples:
     set_parser = defaults_sub.add_parser("set", help="Set a default value")
     set_parser.add_argument("key", help="Key in dot notation (e.g., personal.phone)")
     set_parser.add_argument("value", help="Value to store")
+
+    add_parser = defaults_sub.add_parser(
+        "add", help="Append a value to a list default (creates the list if absent)"
+    )
+    add_parser.add_argument("key", help="Key in dot notation (e.g., personal.phone)")
+    add_parser.add_argument("value", help="Value to append")
 
     remove_parser = defaults_sub.add_parser("remove", help="Remove a default value")
     remove_parser.add_argument("key", help="Key in dot notation (e.g., personal.phone)")

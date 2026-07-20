@@ -8,6 +8,8 @@ import json
 import subprocess
 import sys
 
+import pytest
+
 
 def run_cli(*args, env=None):
     """Run the pdfiller CLI and return the result."""
@@ -538,6 +540,35 @@ class TestNestedHelpers:
         _set_nested(data, "personal.first_name", "New")
         assert data["personal"]["first_name"] == "New"
 
+    def test_add_nested_creates_list(self):
+        from pdfiller.cli import _add_nested
+
+        data = {}
+        _add_nested(data, "personal.phone", "555-1234")
+        assert data == {"personal": {"phone": ["555-1234"]}}
+
+    def test_add_nested_appends_to_list(self):
+        from pdfiller.cli import _add_nested
+
+        data = {"personal": {"phone": ["555-1234"]}}
+        _add_nested(data, "personal.phone", "555-5678")
+        assert data["personal"]["phone"] == ["555-1234", "555-5678"]
+
+    def test_add_nested_promotes_string_to_list(self):
+        from pdfiller.cli import _add_nested
+
+        data = {"personal": {"phone": "555-1234"}}
+        _add_nested(data, "personal.phone", "555-5678")
+        assert data["personal"]["phone"] == ["555-1234", "555-5678"]
+
+    def test_add_nested_rejects_dict_leaf(self):
+        from pdfiller.cli import _add_nested
+        from pdfiller.exceptions import PDFFillerError
+
+        data = {"personal": {"phone": {"nested": "dict"}}}
+        with pytest.raises(PDFFillerError):
+            _add_nested(data, "personal.phone", "555-5678")
+
     def test_remove_nested_existing(self):
         from pdfiller.cli import _remove_nested
 
@@ -698,6 +729,34 @@ class TestDefaultsSet:
         assert result.returncode == 0
         data = json.loads(defaults_file.read_text())
         assert data["medical"]["physician_name"] == "Dr. Smith"
+
+
+class TestDefaultsAdd:
+    def test_add_creates_list(self, tmp_path):
+        defaults_file = tmp_path / "defaults.json"
+        env = {"PDFILLER_DEFAULTS": str(defaults_file)}
+        result = run_cli("defaults", "add", "personal.phone", "555-1234", env=env)
+        assert result.returncode == 0
+        data = json.loads(defaults_file.read_text())
+        assert data["personal"]["phone"] == ["555-1234"]
+
+    def test_add_twice_yields_two_element_list(self, tmp_path):
+        defaults_file = tmp_path / "defaults.json"
+        env = {"PDFILLER_DEFAULTS": str(defaults_file)}
+        run_cli("defaults", "add", "personal.phone", "555-1234", env=env)
+        result = run_cli("defaults", "add", "personal.phone", "555-5678", env=env)
+        assert result.returncode == 0
+        data = json.loads(defaults_file.read_text())
+        assert data["personal"]["phone"] == ["555-1234", "555-5678"]
+
+    def test_add_promotes_existing_string(self, tmp_path):
+        defaults_file = tmp_path / "defaults.json"
+        defaults_file.write_text(json.dumps({"personal": {"phone": "555-1234"}}))
+        env = {"PDFILLER_DEFAULTS": str(defaults_file)}
+        result = run_cli("defaults", "add", "personal.phone", "555-5678", env=env)
+        assert result.returncode == 0
+        data = json.loads(defaults_file.read_text())
+        assert data["personal"]["phone"] == ["555-1234", "555-5678"]
 
 
 class TestDefaultsRemove:

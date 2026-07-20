@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `defaults add <key> <value>` appends a value to a list default, creating a one-element list if the key is absent and promoting an existing string leaf to a two-element list; multi-value defaults no longer require hand-editing JSON
+
 ## [1.2.0] - 2026-07-20
 
 ### Changed (breaking)

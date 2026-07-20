@@ -24,11 +24,6 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 ## 3. UX and CLI Usability
 
-- **U6. `defaults set` cannot store lists** (S)
-  `_set_nested` only stores strings; multi-value defaults require hand-editing JSON.
-  *Fix:* add `defaults add key value` appending to (or creating) a list.
-  *Verify:* `defaults add personal.phone 555-1234` twice yields a two-element list in `defaults show`.
-
 - **U7. Date format hardcoded US style** (S)
   `_format_today_date()` always emits M/D/YYYY (`core.py:366`).
   *Fix:* `date_format` strftime parameter on `PDFFiller`, `--date-format` CLI flag; consider `_meta.date_format` defaults key for persistence.
@@ -141,6 +136,10 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 ---
 
 ## Appendix: Completed Items
+
+From this improvement plan (completed 2026-07-20, unreleased):
+
+- **U6** - `defaults add <key> <value>` appends to a list default (creates a one-element list if absent, promotes an existing string leaf to a two-element list); new `_add_nested` helper backs it
 
 From this improvement plan (completed 2026-07-20, released as 1.2.0):
 

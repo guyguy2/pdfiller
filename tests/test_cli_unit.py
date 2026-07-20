@@ -951,6 +951,57 @@ class TestDefaultsCommandSet:
         assert saved["personal"]["first_name"] == "New"
 
 
+class TestDefaultsCommandAdd:
+    def test_add_creates_list(self, capsys):
+        data = {}
+        args = Namespace(defaults_action="add", key="personal.phone", value="555-1234")
+        with patch("pdfiller.cli.load_defaults", return_value=data), patch(
+            "pdfiller.cli.save_defaults"
+        ) as mock_save:
+            defaults_command(args)
+        saved = mock_save.call_args[0][0]
+        assert saved["personal"]["phone"] == ["555-1234"]
+        out = capsys.readouterr().out
+        assert "Added" in out
+
+    def test_add_twice_yields_two_element_list(self, capsys):
+        data = {}
+        args1 = Namespace(defaults_action="add", key="personal.phone", value="555-1234")
+        with patch("pdfiller.cli.load_defaults", return_value=data), patch(
+            "pdfiller.cli.save_defaults"
+        ) as mock_save:
+            defaults_command(args1)
+        data = mock_save.call_args[0][0]
+
+        args2 = Namespace(defaults_action="add", key="personal.phone", value="555-5678")
+        with patch("pdfiller.cli.load_defaults", return_value=data), patch(
+            "pdfiller.cli.save_defaults"
+        ) as mock_save2:
+            defaults_command(args2)
+        saved = mock_save2.call_args[0][0]
+        assert saved["personal"]["phone"] == ["555-1234", "555-5678"]
+
+    def test_add_promotes_existing_string_to_list(self, capsys):
+        data = {"personal": {"phone": "555-1234"}}
+        args = Namespace(defaults_action="add", key="personal.phone", value="555-5678")
+        with patch("pdfiller.cli.load_defaults", return_value=data), patch(
+            "pdfiller.cli.save_defaults"
+        ) as mock_save:
+            defaults_command(args)
+        saved = mock_save.call_args[0][0]
+        assert saved["personal"]["phone"] == ["555-1234", "555-5678"]
+
+    def test_add_to_non_string_non_list_errors(self, capsys):
+        data = {"personal": {"phone": {"nested": "dict"}}}
+        args = Namespace(defaults_action="add", key="personal.phone", value="555-5678")
+        with patch("pdfiller.cli.load_defaults", return_value=data), patch(
+            "pdfiller.cli.save_defaults"
+        ), pytest.raises(SystemExit):
+            defaults_command(args)
+        err = capsys.readouterr().err
+        assert "Error" in err
+
+
 class TestDefaultsCommandRemove:
     def test_remove_existing(self, capsys):
         data = {"personal": {"first_name": "Guy", "last_name": "Test"}}
