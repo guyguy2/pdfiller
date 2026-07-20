@@ -3,6 +3,7 @@ PDFiller - A simple library for filling PDF forms
 Handles both fillable and non-fillable PDFs with automatic flattening for compatibility
 """
 
+from .config import Config, default_output_path, load_config
 from .core import PDFFiller
 from .exceptions import (
     DefaultsValidationError,
@@ -25,7 +26,7 @@ from .memory import (
     validate_defaults,
 )
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 __all__ = [
     "PDFFiller",
     "PDFFillerError",
@@ -33,6 +34,9 @@ __all__ = [
     "DefaultsValidationError",
     "PDFReadError",
     "PDFWriteError",
+    "Config",
+    "load_config",
+    "default_output_path",
     "load_defaults",
     "save_defaults",
     "flatten_defaults",

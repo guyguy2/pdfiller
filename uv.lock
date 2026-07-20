@@ -287,11 +287,12 @@ wheels = [
 
 [[package]]
 name = "pdfiller"
-version = "1.3.0"
+version = "1.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "pymupdf", version = "1.26.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "pymupdf", version = "1.27.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
 ]
 
 [package.dev-dependencies]
@@ -303,7 +304,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pymupdf", specifier = ">=1.23.0" }]
+requires-dist = [
+    { name = "pymupdf", specifier = ">=1.23.0" },
+    { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0.0" },
+]
 
 [package.metadata.requires-dev]
 dev = [

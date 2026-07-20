@@ -1,30 +1,17 @@
 # Next Session Handoff
 
-Last worked: 2026-07-20. Improvement plan C/U/A/P/S items are complete; shipped as 1.3.0.
+Last updated: 2026-07-20. Full log: `docs/IMPROVEMENTS.md`.
 
-## State
+## Snapshot
 
-- Branch `main`; version **1.3.0** in `pyproject.toml` and `pdfiller/__init__.py`.
-- 378 tests pass (`uv run pytest tests/ -q`); keep `ruff check` / `ruff format --check` clean.
-- All review-plan work items closed (see `docs/IMPROVEMENTS.md` appendix). Remaining backlog is feature ideas F1-F13 only.
+- Branch `main`; version **1.4.0** (F6 user config shipped).
+- Review C/U/A/P/S and F6: all done. Product backlog only: F1-F5, F7-F13.
+- Tests: `uv run pytest tests/ -q`; keep ruff clean.
 
-## This session closed
+## Next work
 
-- **A5** - `fill()` non-fillable box + image placements (+ tests).
-- **P8** - gitignore for filled examples, local BSA blank form, `.claude/skills/`, `.firecrawl/`.
-- **1.3.0** - CHANGELOG `[Unreleased]` batch moved under `[1.3.0] - 2026-07-20`; version bumped.
+No required queue. Optional product picks: F5 (rich CLI), F4 (field grouping), F1 (PDF/A), or other F*.
 
-## If continuing product work
+## F6 one-liner
 
-Prefer **F6** (config file `~/.pdfiller/config.toml`) as the next feature: natural home for date format, flatten default, output naming, and other defaults currently split across flags and `_meta`.
-
-## Module map
-
-- `pdfiller/fields.py` - widget-type predicates
-- `pdfiller/overlays.py` - overlay dataclasses + apply helpers
-- `pdfiller/flatten.py` - flatten_to_file + widget render/strip
-- `pdfiller/core.py` - `PDFFiller` facade (includes `fill()` placement discrimination)
-
-## Per-item workflow
-
-Implement, add tests per verify criterion, run `uv run pytest tests/ -q` and ruff, update CHANGELOG.md, move items in IMPROVEMENTS.md, then commit.
+`~/.pdfiller/config.toml` / `$PDFILLER_CONFIG`: `date_format`, `flatten`, `auto_fill_dates`, `output_suffix`. Fill without `-o` -> `<stem>_filled.pdf`. Precedence: flag > config > `_meta` > built-in.

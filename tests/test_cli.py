@@ -152,15 +152,20 @@ class TestFillCommand:
         assert result.returncode != 0
         assert "Invalid JSON" in result.stderr
 
-    def test_fill_missing_output(self, fillable_pdf):
+    def test_fill_default_output_when_omitted(self, fillable_pdf):
+        """Without -o, fill writes <stem>_filled.pdf next to the input."""
         result = run_cli(
             "fill",
             "-i",
             str(fillable_pdf),
             "-f",
             "first_name=Test",
+            "--no-flatten",
         )
-        assert result.returncode != 0
+        assert result.returncode == 0, result.stderr
+        out = fillable_pdf.with_name(f"{fillable_pdf.stem}_filled.pdf")
+        assert out.exists()
+        assert str(out) in result.stdout or out.name in result.stdout
 
     def test_dry_run(self, fillable_pdf):
         result = run_cli(

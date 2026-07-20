@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 from typing import Any, Optional
 
+from .config import Config, default_output_path, load_config
 from .core import PDFFiller
 from .exceptions import PDFFillerError
 from .fields import is_checkbox_type, is_push_button_type
@@ -87,17 +88,42 @@ def _queue_overlays(filler: PDFFiller, data: dict[str, Any]) -> int:
     return count
 
 
-def _resolve_date_format(args) -> Optional[str]:
+def _resolve_date_format(args, config: Optional[Config] = None) -> Optional[str]:
     """Resolve the date format for auto-filled date fields.
 
-    Precedence: the --date-format flag, then a `_meta.date_format` key in the
-    stored defaults, then None (the default M/D/YYYY format).
+    Precedence: --date-format flag, then config.toml date_format, then
+    `_meta.date_format` in stored defaults, then None (built-in M/D/YYYY).
     """
     explicit = getattr(args, "date_format", None)
     if explicit:
         return explicit
+    if config is None:
+        config = load_config()
+    if config.date_format:
+        return config.date_format
     fmt = load_defaults().get("_meta", {}).get("date_format")
     return fmt if isinstance(fmt, str) else None
+
+
+def _resolve_auto_fill_dates(args, config: Config) -> bool:
+    """Whether to auto-fill empty date fields.
+
+    --no-auto-dates always wins; otherwise config.auto_fill_dates if set; else True.
+    """
+    if getattr(args, "no_auto_dates", False):
+        return False
+    if config.auto_fill_dates is not None:
+        return config.auto_fill_dates
+    return True
+
+
+def _resolve_fill_output(args, config: Config) -> Optional[str]:
+    """Output path for fill: explicit -o, else <stem><suffix>.pdf next to input."""
+    if args.output:
+        return args.output
+    if args.dry_run:
+        return None
+    return str(default_output_path(args.input, config.output_suffix))
 
 
 def _redact_value(value: Any) -> str:
@@ -207,13 +233,18 @@ def list_fields_command(args):
 
 def fill_command(args):
     """Fill PDF fields from JSON or command-line arguments"""
-    if not args.dry_run and not args.output:
-        print("Error: -o/--output is required unless --dry-run is used", file=sys.stderr)
-        sys.exit(1)
     try:
-        auto_dates = not getattr(args, "no_auto_dates", False)
+        config = load_config()
+        auto_dates = _resolve_auto_fill_dates(args, config)
         strict = getattr(args, "strict", False)
-        date_format = _resolve_date_format(args)
+        date_format = _resolve_date_format(args, config)
+        output_path = _resolve_fill_output(args, config)
+        # Flatten: --no-flatten sets args.flatten False; otherwise config then True
+        flatten = (
+            args.flatten
+            if args.flatten is not None
+            else (config.flatten if config.flatten is not None else True)
+        )
         with PDFFiller(
             args.input,
             auto_fill_dates=auto_dates,
@@ -359,7 +390,7 @@ def fill_command(args):
                         print(f"    {name} = [auto-date: today]")
 
             # Save the filled PDF
-            output_path = filler.save(args.output, flatten=args.flatten)
+            saved_path = filler.save(output_path, flatten=flatten)
 
             # Report operations the save skipped (e.g. preserve-existing)
             if verbose:
@@ -373,7 +404,7 @@ def fill_command(args):
             summary = f"{filled_count} fields, {checked_count} checkboxes"
             if overlay_count:
                 summary += f", {overlay_count} overlays"
-            print(f"Done: {output_path} ({summary})")
+            print(f"Done: {saved_path} ({summary})")
 
     except PDFFillerError as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -633,14 +664,21 @@ def batch_command(args):
     filled = 0
     errors = []
     used_names: set = set()
-    date_format = _resolve_date_format(args)
+    config = load_config()
+    date_format = _resolve_date_format(args, config)
+    auto_dates = _resolve_auto_fill_dates(args, config)
+    flatten = (
+        args.flatten
+        if args.flatten is not None
+        else (config.flatten if config.flatten is not None else True)
+    )
 
     for i, row in enumerate(rows, start=1):
         output_file = _batch_output_path(output_dir, stem, row, name_from, i, used_names)
         try:
             with PDFFiller(
                 args.input,
-                auto_fill_dates=not args.no_auto_dates,
+                auto_fill_dates=auto_dates,
                 strict=getattr(args, "strict", False),
                 date_format=date_format,
                 password=getattr(args, "password", None),
@@ -658,7 +696,7 @@ def batch_command(args):
                     if value is None:
                         continue
                     filler.fill_field(field_name, value)
-                filler.save(str(output_file), flatten=args.flatten)
+                filler.save(str(output_file), flatten=flatten)
             filled += 1
         except Exception as e:
             errors.append((i, str(e)))
@@ -766,7 +804,14 @@ Examples:
     fill_parser = subparsers.add_parser("fill", help="Fill PDF form fields")
     fill_parser.set_defaults(func=fill_command)
     fill_parser.add_argument("-i", "--input", required=True, help="Input PDF file")
-    fill_parser.add_argument("-o", "--output", help="Output PDF file (required unless --dry-run)")
+    fill_parser.add_argument(
+        "-o",
+        "--output",
+        help=(
+            "Output PDF file (default: <input_stem><suffix>.pdf next to the input; "
+            "suffix from config output_suffix, default _filled)"
+        ),
+    )
     fill_parser.add_argument(
         "-j",
         "--values-json",
@@ -782,7 +827,8 @@ Examples:
         "--no-flatten",
         dest="flatten",
         action="store_false",
-        help="Do not flatten the PDF (not recommended)",
+        default=None,
+        help="Do not flatten the PDF (overrides config flatten; not recommended)",
     )
     fill_parser.add_argument(
         "--preserve-existing", action="store_true", help="Preserve existing field values"
@@ -817,7 +863,7 @@ Examples:
         "--date-format",
         help=(
             "strftime pattern for auto-filled date fields (e.g. %%Y-%%m-%%d); "
-            "overrides _meta.date_format in stored defaults"
+            "overrides config.toml and _meta.date_format"
         ),
     )
     fill_parser.add_argument(
@@ -838,7 +884,8 @@ Examples:
         "--no-flatten",
         dest="flatten",
         action="store_false",
-        help="Do not flatten the PDFs (not recommended)",
+        default=None,
+        help="Do not flatten the PDFs (overrides config flatten; not recommended)",
     )
     batch_parser.add_argument(
         "--no-auto-dates",
@@ -849,7 +896,7 @@ Examples:
         "--date-format",
         help=(
             "strftime pattern for auto-filled date fields (e.g. %%Y-%%m-%%d); "
-            "overrides _meta.date_format in stored defaults"
+            "overrides config.toml and _meta.date_format"
         ),
     )
     batch_parser.add_argument(

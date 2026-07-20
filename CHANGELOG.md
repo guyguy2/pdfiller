@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-07-20
+
+### Added
+
+- User config file `~/.pdfiller/config.toml` (or `$PDFILLER_CONFIG`) for CLI defaults: `date_format`, `flatten`, `auto_fill_dates`, and `output_suffix`; load via `load_config()` / `Config`
+- `fill` without `-o` writes `<stem>_filled.pdf` next to the input (suffix from config `output_suffix`)
+
+### Changed
+
+- Date format precedence is now flag > config.toml > `_meta.date_format` > built-in M/D/YYYY
+
 ## [1.3.0] - 2026-07-20
 
 ### Added

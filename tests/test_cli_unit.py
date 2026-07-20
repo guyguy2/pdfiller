@@ -7,6 +7,7 @@ PDFFiller class, avoiding subprocess overhead and real PDF I/O.
 
 import json
 from argparse import Namespace
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -357,12 +358,21 @@ class TestFillCommand:
         defaults.update(overrides)
         return Namespace(**defaults)
 
-    def test_missing_output_without_dry_run_exits(self, capsys):
-        args = self._base_args(output=None, dry_run=False)
-        with pytest.raises(SystemExit):
+    def test_default_output_path_when_output_omitted(self, capsys):
+        """Without -o, fill writes next to the input as <stem>_filled.pdf."""
+        filler = _make_filler_mock(
+            pending={"fields": {"first_name": "Alice"}, "check": [], "uncheck": []},
+        )
+        args = self._base_args(output=None, dry_run=False, field=["first_name=Alice"])
+
+        with patch("pdfiller.cli.PDFFiller", return_value=filler):
             fill_command(args)
-        err = capsys.readouterr().err
-        assert "-o/--output is required" in err
+
+        filler.save.assert_called_once()
+        saved_path = filler.save.call_args[0][0]
+        assert Path(saved_path).name == "form_filled.pdf"
+        out = capsys.readouterr().out
+        assert "Done:" in out
 
     def test_fill_with_field_args(self, capsys):
         filler = _make_filler_mock(

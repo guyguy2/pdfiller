@@ -24,6 +24,13 @@ def _isolate_matchers():
     reset_matchers()
 
 
+@pytest.fixture(autouse=True)
+def _isolate_config(monkeypatch, tmp_path_factory):
+    """Point PDFILLER_CONFIG at a non-existent file so tests never read the user's config."""
+    missing = tmp_path_factory.mktemp("pdfiller-config") / "config.toml"
+    monkeypatch.setenv("PDFILLER_CONFIG", str(missing))
+
+
 def _make_png() -> bytes:
     """Create a minimal valid 1x1 PNG image."""
     sig = b"\x89PNG\r\n\x1a\n"
