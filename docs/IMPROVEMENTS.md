@@ -28,11 +28,6 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 ## 4. Architecture and Extensibility
 
-- **A1. `core.py` heading toward god class** (M)
-  `PDFFiller` handles form filling, overlay drawing, flattening, size policy, and date heuristics (838 lines).
-  *Fix:* before adding features, split `_flatten_with_overlays` and helpers into `flatten.py`, and overlay queue/apply logic into `overlays.py`, keeping `PDFFiller` as facade.
-  *Verify:* no public API change; tests pass unmodified.
-
 - **A5. `fill()` non-fillable spec only supports point text** (S)
   Coordinate-dict schema accepts `text/x/y` but not the box form or images, so the high-level API covers less than the low-level one (`core.py:228`).
   *Fix:* extend spec with `"box"` and `"image"` entry types; align with the U1 JSON schema so library and CLI share one format.
@@ -92,6 +87,7 @@ From this improvement plan (completed 2026-07-20, unreleased):
 - **U8** - Encrypted PDFs now try an empty user password automatically and accept a `password` param (`--password` on all PDF-opening commands); wrong/missing password still raises `PDFReadError`
 - **P5+P6** - Bumped `requires-python` to >=3.9 (dropped EOL 3.8 classifier, ruff target py39), modernized annotations to built-in generics, and switched `import fitz` to the canonical `import pymupdf` throughout source and tests
 - **A3** - New `pdfiller/overlays.py` with `PointTextOverlay`/`BoxTextOverlay`/`ImageOverlay` dataclasses replacing raw overlay dicts; `_apply_text_overlays` dispatches by `isinstance`; `pending_operations` emits the same dict shape via `asdict` (public behavior unchanged). Internal refactor
+- **A1** - Split overlay apply logic (`apply_text_overlays`/`apply_image_overlays`) into `overlays.py` and flattening (`flatten_to_file` plus widget-render/strip helpers) into a new `flatten.py`; `PDFFiller` methods are now thin facades. `core.py` dropped from 898 to 805 lines; no public API change, all tests pass unmodified
 
 From this improvement plan (completed 2026-07-20, released as 1.2.0):
 

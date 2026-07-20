@@ -5,7 +5,6 @@ Core functionality for PDF form filling
 import logging
 import os
 import re
-import tempfile
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -14,8 +13,15 @@ from typing import Any, Optional, Union
 import pymupdf
 
 from .exceptions import FieldNotFoundError, PDFFillerError, PDFReadError, PDFWriteError
-from .fields import is_checkbox, is_choice_widget
-from .overlays import BoxTextOverlay, ImageOverlay, PointTextOverlay
+from .fields import is_choice_widget
+from .flatten import flatten_to_file
+from .overlays import (
+    BoxTextOverlay,
+    ImageOverlay,
+    PointTextOverlay,
+    apply_image_overlays,
+    apply_text_overlays,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -642,123 +648,24 @@ class PDFFiller:
 
     def _apply_image_overlays(self):
         """Write all queued image overlays to their respective pages."""
-        for overlay in self._image_overlays:
-            # insert_image() already validated page_num when the overlay was queued
-            page = self.doc[overlay.page_num]
-            page.insert_image(
-                pymupdf.Rect(overlay.rect),
-                filename=overlay.image_path,
-                keep_proportion=overlay.keep_proportion,
-            )
+        apply_image_overlays(self.doc, self._image_overlays)
 
     def _apply_text_overlays(self):
         """Write all queued text overlays to their respective pages."""
-        for overlay in self._text_overlays:
-            # insert_text()/insert_text_box() already validated page_num on queue
-            page = self.doc[overlay.page_num]
-
-            if isinstance(overlay, PointTextOverlay):
-                page.insert_text(
-                    (overlay.x, overlay.y),
-                    overlay.text,
-                    fontsize=overlay.font_size,
-                    fontname=overlay.font_name,
-                    color=overlay.color,
-                )
-            elif isinstance(overlay, BoxTextOverlay):
-                page.insert_textbox(
-                    pymupdf.Rect(overlay.rect),
-                    overlay.text,
-                    fontsize=overlay.font_size,
-                    fontname=overlay.font_name,
-                    color=overlay.color,
-                )
-
-    @staticmethod
-    def _insert_fitted_textbox(page, rect, text: str, font_size: float) -> None:
-        """Render text clipped to rect, shrinking the font stepwise until it fits.
-
-        insert_textbox writes nothing and returns a negative value when the
-        text does not fit, so each attempt is safe to retry at a smaller size.
-        """
-        min_font_size = 2.0
-        while font_size >= min_font_size:
-            leftover = page.insert_textbox(
-                rect, text, fontsize=font_size, color=(0, 0, 0), fontname="helv"
-            )
-            if leftover >= 0:
-                return
-            font_size -= 0.5
-        logger.warning(
-            "Field value does not fit its widget rect even at %.1fpt; value not rendered: %.40r",
-            min_font_size,
-            text,
-        )
+        apply_text_overlays(self.doc, self._text_overlays)
 
     def _flatten_with_overlays(self, output_path: Union[str, Path]):
         """
         Create a flattened PDF with text overlays
         This ensures filled values are visible in all PDF viewers
         """
-        # First apply updates
+        # First apply field updates and any queued text/image overlays.
         self._apply_field_updates()
-
-        # Apply any queued text/image overlays for non-fillable PDFs
         self._apply_text_overlays()
         self._apply_image_overlays()
 
-        # Save temporary version; unique name so concurrent fills targeting
-        # the same output path cannot clobber each other's temp file
-        output_path = Path(output_path)
-        with tempfile.NamedTemporaryFile(
-            dir=output_path.parent, prefix=output_path.stem + ".", suffix=".temp.pdf", delete=False
-        ) as tf:
-            temp_path = Path(tf.name)
-        self.doc.save(str(temp_path), garbage=4, deflate=True)
-        self.doc.close()
-
-        try:
-            # Reopen and add text overlays for form fields
-            self.doc = pymupdf.open(str(temp_path))
-
-            for page_num in range(self.page_count):
-                page = self.doc[page_num]
-                for widget in page.widgets():
-                    # Overlay any field that has a visible value. This covers
-                    # fields we filled, checkboxes we checked, auto-dated
-                    # fields, AND values already present in the source PDF.
-                    # The latter would otherwise be lost when the widget
-                    # annotations are deleted below.
-                    value = widget.field_value
-
-                    if value and value not in ["Off", ""]:
-                        rect = widget.rect
-                        height = rect.height
-                        font_size = min(height * 0.7, 10)  # Max 10pt
-
-                        # Checkboxes report their "on" state as any non-Off
-                        # export value (e.g. "On", "Yes", True); render an X
-                        # mark for all of them rather than the raw value.
-                        if is_checkbox(widget):
-                            x = rect.x0 + 2
-                            y = rect.y0 + (height * 0.75)
-                            page.insert_text(
-                                (x, y), "X", fontsize=font_size, color=(0, 0, 0), fontname="helv"
-                            )
-                        else:
-                            self._insert_fitted_textbox(page, rect, str(value), font_size)
-
-            # Remove widget annotations so only the text overlays remain
-            for page_num in range(self.page_count):
-                page = self.doc[page_num]
-                widget = page.first_widget
-                while widget:
-                    widget = page.delete_widget(widget)
-
-            # Save final version
-            self.doc.save(str(output_path), garbage=4, deflate=True)
-        finally:
-            temp_path.unlink(missing_ok=True)
+        # Flatten the widget values to static text; adopt the reopened doc.
+        self.doc = flatten_to_file(self.doc, output_path)
 
     def save(self, output_path: Union[str, Path], flatten: bool = True) -> Path:
         """
