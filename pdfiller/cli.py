@@ -14,13 +14,8 @@ from typing import Any, Dict, Optional
 
 from .core import PDFFiller
 from .exceptions import PDFFillerError
+from .fields import is_checkbox_type, is_push_button_type
 from .memory import flatten_defaults, load_defaults, match_field_to_defaults, save_defaults
-
-# Field types treated as checkboxes (toggled, not assigned a text value).
-# Push buttons (PyMuPDF type "Button") are actions, not state, and are
-# excluded from both template and export output.
-_CHECKBOX_FIELD_TYPES = ("CheckBox",)
-_PUSH_BUTTON_FIELD_TYPES = ("Button",)
 
 # Required keys per overlay section in the fill JSON schema
 _OVERLAY_REQUIRED_KEYS = {
@@ -387,9 +382,9 @@ def export_command(args):
                 name = field["name"]
                 value = field["value"]
                 field_type = field["type"]
-                if field_type in _PUSH_BUTTON_FIELD_TYPES:
+                if is_push_button_type(field_type):
                     continue
-                if field_type in _CHECKBOX_FIELD_TYPES:
+                if is_checkbox_type(field_type):
                     if value and value not in ("Off", ""):
                         data["checkboxes"].append(name)
                 elif value:
@@ -651,9 +646,9 @@ def template_command(args):
                 field_name = field["name"]
                 field_type = field["type"]
 
-                if field_type in _PUSH_BUTTON_FIELD_TYPES:
+                if is_push_button_type(field_type):
                     continue
-                if field_type in _CHECKBOX_FIELD_TYPES:
+                if is_checkbox_type(field_type):
                     template["checkboxes"].append(field_name)
                 else:
                     template["fields"][field_name] = ""

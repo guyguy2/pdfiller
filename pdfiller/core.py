@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import fitz  # PyMuPDF
 
 from .exceptions import FieldNotFoundError, PDFFillerError, PDFReadError, PDFWriteError
+from .fields import is_checkbox, is_choice_widget
 
 logger = logging.getLogger(__name__)
 
@@ -163,11 +164,7 @@ class PDFFiller:
                 }
 
                 # Include available options for radio buttons and dropdowns
-                if widget.field_type in (
-                    fitz.PDF_WIDGET_TYPE_RADIOBUTTON,
-                    fitz.PDF_WIDGET_TYPE_COMBOBOX,
-                    fitz.PDF_WIDGET_TYPE_LISTBOX,
-                ):
+                if is_choice_widget(widget):
                     field_info["options"] = widget.choice_values or []
 
                 fields.append(field_info)
@@ -402,11 +399,7 @@ class PDFFiller:
                     value = self._fields_to_fill[field_name]
 
                     # Validate option value for radio buttons and dropdowns
-                    if widget.field_type in (
-                        fitz.PDF_WIDGET_TYPE_RADIOBUTTON,
-                        fitz.PDF_WIDGET_TYPE_COMBOBOX,
-                        fitz.PDF_WIDGET_TYPE_LISTBOX,
-                    ):
+                    if is_choice_widget(widget):
                         options = widget.choice_values or []
                         if options and str(value) not in options:
                             raise PDFFillerError(
@@ -730,7 +723,7 @@ class PDFFiller:
                         # Checkboxes report their "on" state as any non-Off
                         # export value (e.g. "On", "Yes", True); render an X
                         # mark for all of them rather than the raw value.
-                        if widget.field_type == fitz.PDF_WIDGET_TYPE_CHECKBOX:
+                        if is_checkbox(widget):
                             x = rect.x0 + 2
                             y = rect.y0 + (height * 0.75)
                             page.insert_text(
