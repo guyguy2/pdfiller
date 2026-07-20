@@ -246,6 +246,44 @@ def fillable_pdf_with_listbox(tmp_path):
 
 
 @pytest.fixture
+def encrypted_pdf_empty_user_pw(tmp_path):
+    """Create an encrypted PDF that opens with an empty user password.
+
+    Only an owner password is set, so viewers open it without prompting but the
+    file is still flagged as encrypted.
+    """
+    path = tmp_path / "encrypted_empty.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=612, height=792)
+    page.insert_text((100, 100), "Encrypted content", fontsize=12)
+    doc.save(
+        str(path),
+        encryption=fitz.PDF_ENCRYPT_AES_256,
+        owner_pw="owner-secret",
+        user_pw="",
+    )
+    doc.close()
+    return path
+
+
+@pytest.fixture
+def encrypted_pdf_with_user_pw(tmp_path):
+    """Create an encrypted PDF protected by a non-empty user password."""
+    path = tmp_path / "encrypted_user.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=612, height=792)
+    page.insert_text((100, 100), "Secret content", fontsize=12)
+    doc.save(
+        str(path),
+        encryption=fitz.PDF_ENCRYPT_AES_256,
+        owner_pw="owner-secret",
+        user_pw="open-sesame",
+    )
+    doc.close()
+    return path
+
+
+@pytest.fixture
 def large_pdf(tmp_path):
     """Create a PDF file that exceeds a small size limit for testing."""
     path = tmp_path / "large.pdf"

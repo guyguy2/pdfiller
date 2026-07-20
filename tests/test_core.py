@@ -45,6 +45,23 @@ class TestOpenErrors:
         with pytest.raises(PDFReadError, match="password-protected"):
             PDFFiller(path)
 
+    def test_empty_user_password_opens(self, encrypted_pdf_empty_user_pw):
+        # Encrypted with only an owner password: empty user password should open it.
+        with PDFFiller(encrypted_pdf_empty_user_pw) as f:
+            assert f.page_count == 1
+
+    def test_correct_user_password_opens(self, encrypted_pdf_with_user_pw):
+        with PDFFiller(encrypted_pdf_with_user_pw, password="open-sesame") as f:
+            assert f.page_count == 1
+
+    def test_wrong_user_password_raises(self, encrypted_pdf_with_user_pw):
+        with pytest.raises(PDFReadError, match="password-protected"):
+            PDFFiller(encrypted_pdf_with_user_pw, password="wrong")
+
+    def test_missing_user_password_raises(self, encrypted_pdf_with_user_pw):
+        with pytest.raises(PDFReadError, match="password-protected"):
+            PDFFiller(encrypted_pdf_with_user_pw)
+
 
 class TestPageCount:
     def test_single_page(self, fillable_pdf):

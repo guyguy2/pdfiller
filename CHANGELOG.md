@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `py.typed` marker so type checkers pick up the package's inline type hints when it is installed as a dependency
 - `pytest-cov` in the dev dependency group; run `uv run pytest --cov=pdfiller` for a coverage report
 - Configurable date format for auto-filled date fields: `date_format` strftime parameter on `PDFFiller`, `--date-format` flag on `fill` and `batch`, and a `_meta.date_format` key in stored defaults (flag wins, then `_meta.date_format`, then the default M/D/YYYY)
+- Encrypted-PDF support: `PDFFiller` now tries an empty user password automatically (so PDFs that "open without a password" in a viewer just work) and accepts a `password` parameter; all PDF-opening CLI commands (`list`, `fill`, `batch`, `inspect`, `export`, `template`) accept `--password`
+
+### Changed
+
+- Opening an encrypted PDF no longer fails outright: it succeeds when the empty or supplied password authenticates, and still raises `PDFReadError` for a wrong or missing password
 
 ### Changed
 

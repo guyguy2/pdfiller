@@ -48,6 +48,7 @@ class PDFFiller:
         max_pdf_size: Optional[int] = DEFAULT_MAX_PDF_SIZE,
         max_image_size: Optional[int] = DEFAULT_MAX_IMAGE_SIZE,
         date_format: Optional[str] = None,
+        password: Optional[str] = None,
     ):
         """
         Initialize PDFFiller with a PDF file
@@ -64,6 +65,9 @@ class PDFFiller:
                 Set to None to disable the check.
             date_format: strftime pattern for auto-filled date fields (e.g.
                 "%Y-%m-%d"). When None, uses the default M/D/YYYY format.
+            password: Password for an encrypted PDF. Encrypted PDFs are also
+                tried with an empty password first, so files that "open without
+                a password" in a viewer work without passing this.
 
         Raises:
             PDFReadError: If PDF cannot be opened
@@ -109,7 +113,9 @@ class PDFFiller:
         except Exception as e:
             raise PDFReadError(f"Failed to open PDF: {e}") from e
 
-        if self.doc.is_encrypted:
+        # An encrypted PDF often opens with an empty user password; try that
+        # (and any supplied password) before giving up.
+        if self.doc.is_encrypted and not self.doc.authenticate(password or ""):
             self.doc.close()
             raise PDFReadError(f"PDF is password-protected: {pdf_path}")
 

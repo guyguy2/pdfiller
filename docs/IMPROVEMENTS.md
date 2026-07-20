@@ -24,11 +24,6 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 ## 3. UX and CLI Usability
 
-- **U8. Encrypted PDFs rejected outright** (S)
-  Many "protected" PDFs open with an empty user password; users may legitimately have the password (`core.py:106`).
-  *Fix:* try `doc.authenticate("")` before failing; add optional `password` parameter and `--password` flag.
-  *Verify:* fixture encrypted with empty user password opens; wrong password still raises `PDFReadError`.
-
 ---
 
 ## 4. Architecture and Extensibility
@@ -109,6 +104,7 @@ From this improvement plan (completed 2026-07-20, unreleased):
 - **P4** - Added `pdfiller/py.typed` marker (ships in the wheel) so type checkers use the package's inline hints
 - **P7** - Added `pytest-cov` to the dev group; `uv run pytest --cov=pdfiller` reports coverage (currently ~90%)
 - **U7** - Configurable auto-date format: `date_format` strftime param on `PDFFiller`, `--date-format` flag on `fill`/`batch`, and `_meta.date_format` defaults key; precedence is flag > `_meta.date_format` > default M/D/YYYY
+- **U8** - Encrypted PDFs now try an empty user password automatically and accept a `password` param (`--password` on all PDF-opening commands); wrong/missing password still raises `PDFReadError`
 
 From this improvement plan (completed 2026-07-20, released as 1.2.0):
 

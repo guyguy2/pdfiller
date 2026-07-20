@@ -186,7 +186,7 @@ def _format_fields_csv(fields) -> str:
 def list_fields_command(args):
     """List all fields in a PDF"""
     try:
-        with PDFFiller(args.input) as filler:
+        with PDFFiller(args.input, password=getattr(args, "password", None)) as filler:
             fields = filler.list_fields()
 
             fmt = getattr(args, "format", None) or "table"
@@ -215,7 +215,11 @@ def fill_command(args):
         strict = getattr(args, "strict", False)
         date_format = _resolve_date_format(args)
         with PDFFiller(
-            args.input, auto_fill_dates=auto_dates, strict=strict, date_format=date_format
+            args.input,
+            auto_fill_dates=auto_dates,
+            strict=strict,
+            date_format=date_format,
+            password=getattr(args, "password", None),
         ) as filler:
             # Set preserve mode
             filler.preserve_existing_fields(args.preserve_existing)
@@ -379,7 +383,7 @@ def fill_command(args):
 def inspect_command(args):
     """Inspect a non-fillable PDF's text layout"""
     try:
-        with PDFFiller(args.input) as filler:
+        with PDFFiller(args.input, password=getattr(args, "password", None)) as filler:
             for page_num in range(filler.page_count):
                 layout = filler.get_page_layout(page_num)
                 print(f"Page {page_num}: {layout['width']:.0f}x{layout['height']:.0f}")
@@ -403,7 +407,7 @@ def inspect_command(args):
 def export_command(args):
     """Extract current field values from a PDF to JSON"""
     try:
-        with PDFFiller(args.input) as filler:
+        with PDFFiller(args.input, password=getattr(args, "password", None)) as filler:
             fields = filler.list_fields()
             data = {
                 "fields": {},
@@ -639,6 +643,7 @@ def batch_command(args):
                 auto_fill_dates=not args.no_auto_dates,
                 strict=getattr(args, "strict", False),
                 date_format=date_format,
+                password=getattr(args, "password", None),
             ) as filler:
                 # Every CSV column is applied as a field value by name. Checkbox
                 # columns are set through the same path, so they only toggle when
@@ -669,7 +674,7 @@ def batch_command(args):
 def template_command(args):
     """Generate a template JSON file for filling a PDF"""
     try:
-        with PDFFiller(args.input) as filler:
+        with PDFFiller(args.input, password=getattr(args, "password", None)) as filler:
             fields = filler.list_fields()
 
             # Create template structure
@@ -888,6 +893,21 @@ Examples:
     template_parser.add_argument(
         "-o", "--output", help="Output JSON template file (prints to stdout if omitted)"
     )
+
+    # Every command that opens a PDF accepts an optional password. An empty
+    # password is tried automatically, so this is only needed for PDFs with a
+    # non-empty user password.
+    for pdf_parser in (
+        list_parser,
+        fill_parser,
+        batch_parser,
+        inspect_parser,
+        export_parser,
+        template_parser,
+    ):
+        pdf_parser.add_argument(
+            "--password", help="Password for an encrypted PDF (empty password is tried first)"
+        )
 
     # Defaults command
     defaults_parser = subparsers.add_parser("defaults", help="Manage stored defaults")

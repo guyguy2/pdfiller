@@ -509,6 +509,21 @@ class TestFillOverlays:
         assert "Extra note" in text
 
 
+class TestEncryptedPdf:
+    def test_list_empty_password_pdf(self, encrypted_pdf_empty_user_pw):
+        result = run_cli("list", "-i", str(encrypted_pdf_empty_user_pw))
+        assert result.returncode == 0
+
+    def test_list_with_password_flag(self, encrypted_pdf_with_user_pw):
+        result = run_cli("list", "-i", str(encrypted_pdf_with_user_pw), "--password", "open-sesame")
+        assert result.returncode == 0
+
+    def test_list_wrong_password_fails(self, encrypted_pdf_with_user_pw):
+        result = run_cli("list", "-i", str(encrypted_pdf_with_user_pw), "--password", "nope")
+        assert result.returncode == 1
+        assert "password-protected" in result.stderr
+
+
 class TestTemplateCommand:
     def test_generate_template(self, fillable_pdf, tmp_path):
         out = tmp_path / "template.json"
