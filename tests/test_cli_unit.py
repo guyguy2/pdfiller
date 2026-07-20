@@ -858,6 +858,19 @@ class TestTemplateCommand:
         assert f"Saved: {out_file}" in out
         assert "pdfiller fill" in out
 
+    def test_prints_to_stdout_without_output(self, capsys):
+        filler = _make_filler_mock()
+        args = Namespace(input="form.pdf", output=None)
+
+        with patch("pdfiller.cli.PDFFiller", return_value=filler):
+            template_command(args)
+
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        assert "fields" in data
+        assert "checkboxes" in data
+        assert "Saved:" not in out
+
     def test_pdffiller_error_exits(self, capsys):
         filler = _make_filler_mock()
         filler.__enter__.side_effect = PDFFillerError("bad pdf")

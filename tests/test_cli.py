@@ -441,6 +441,13 @@ class TestTemplateCommand:
         assert "first_name" in data["fields"]
         assert "agree_terms" in data["checkboxes"]
 
+    def test_template_to_stdout(self, fillable_pdf):
+        result = run_cli("template", "-i", str(fillable_pdf))
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert "first_name" in data["fields"]
+        assert "agree_terms" in data["checkboxes"]
+
 
 class TestInspectCommand:
     def test_inspect_non_fillable(self, non_fillable_pdf):

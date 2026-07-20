@@ -34,11 +34,6 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
   *Fix:* try `doc.authenticate("")` before failing; add optional `password` parameter and `--password` flag.
   *Verify:* fixture encrypted with empty user password opens; wrong password still raises `PDFReadError`.
 
-- **U9. Inconsistent stdout/file output plumbing** (S)
-  `list` writes via `open()`, `export` via `Path.write_text`, `template` requires `-o` while others default to stdout.
-  *Fix:* unify - every read-only command prints to stdout by default and accepts `-o`; one shared `_write_output(text, path)` helper.
-  *Verify:* `template -i form.pdf` (no `-o`) prints JSON to stdout.
-
 ---
 
 ## 4. Architecture and Extensibility
@@ -140,6 +135,7 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 From this improvement plan (completed 2026-07-20, unreleased):
 
 - **U6** - `defaults add <key> <value>` appends to a list default (creates a one-element list if absent, promotes an existing string leaf to a two-element list); new `_add_nested` helper backs it
+- **U9** - Unified read-only output via a shared `_write_output(text, path)` helper; `list`, `export`, and `template` all default to stdout and accept `-o`; `template` no longer requires `-o`
 
 From this improvement plan (completed 2026-07-20, released as 1.2.0):
 

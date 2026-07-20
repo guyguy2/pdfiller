@@ -114,6 +114,20 @@ def _describe_overlays(data: Dict[str, Any]) -> list:
     return lines
 
 
+def _write_output(text: str, path: Optional[str]) -> None:
+    """Write command output to a file or stdout.
+
+    With a path, writes the text verbatim and prints a "Saved:" notice.
+    Without a path, writes to stdout, ensuring exactly one trailing newline
+    (text that already ends in a newline, such as CSV, is left untouched).
+    """
+    if path:
+        Path(path).write_text(text)
+        print(f"Saved: {path}")
+    else:
+        sys.stdout.write(text if text.endswith("\n") else text + "\n")
+
+
 def _format_fields_table(fields, input_path: str) -> str:
     """Format fields as a human-readable table."""
     lines = [f"\nFound {len(fields)} fields in {input_path}:\n"]
@@ -167,12 +181,7 @@ def list_fields_command(args):
             else:
                 output = _format_fields_table(fields, args.input)
 
-            if args.output:
-                with open(args.output, "w") as f:
-                    f.write(output)
-                print(f"Saved: {args.output}")
-            else:
-                print(output, end="" if fmt == "csv" else "\n")
+            _write_output(output, args.output)
 
     except PDFFillerError as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -387,11 +396,7 @@ def export_command(args):
                     data["fields"][name] = value
 
             output = json.dumps(data, indent=2)
-            if args.output:
-                Path(args.output).write_text(output)
-                print(f"Saved: {args.output}")
-            else:
-                print(output)
+            _write_output(output, args.output)
 
     except PDFFillerError as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -653,15 +658,13 @@ def template_command(args):
                 else:
                     template["fields"][field_name] = ""
 
-            # Save template
-            with open(args.output, "w") as f:
-                json.dump(template, f, indent=2)
-
-            print(f"Saved: {args.output}")
-            print(
-                f"  Edit this file and use with: "
-                f"pdfiller fill -i {args.input} -j {args.output} -o output.pdf"
-            )
+            output = json.dumps(template, indent=2)
+            _write_output(output, args.output)
+            if args.output:
+                print(
+                    f"  Edit this file and use with: "
+                    f"pdfiller fill -i {args.input} -j {args.output} -o output.pdf"
+                )
 
     except PDFFillerError as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -829,7 +832,9 @@ Examples:
     # Template command
     template_parser = subparsers.add_parser("template", help="Generate template JSON for a PDF")
     template_parser.add_argument("-i", "--input", required=True, help="Input PDF file")
-    template_parser.add_argument("-o", "--output", required=True, help="Output JSON template file")
+    template_parser.add_argument(
+        "-o", "--output", help="Output JSON template file (prints to stdout if omitted)"
+    )
 
     # Defaults command
     defaults_parser = subparsers.add_parser("defaults", help="Manage stored defaults")

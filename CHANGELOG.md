@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `defaults add <key> <value>` appends a value to a list default, creating a one-element list if the key is absent and promoting an existing string leaf to a two-element list; multi-value defaults no longer require hand-editing JSON
+- `template` now prints to stdout when `-o/--output` is omitted, matching `list` and `export`
+
+### Changed
+
+- Unified read-only command output through a shared `_write_output` helper: `list`, `export`, and `template` all print to stdout by default and write to a file (with a "Saved:" notice) when `-o` is given
 
 ## [1.2.0] - 2026-07-20
 
