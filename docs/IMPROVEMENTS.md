@@ -43,11 +43,6 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
   *Fix:* before adding features, split `_flatten_with_overlays` and helpers into `flatten.py`, and overlay queue/apply logic into `overlays.py`, keeping `PDFFiller` as facade.
   *Verify:* no public API change; tests pass unmodified.
 
-- **A2. Global mutable matcher registry** (S)
-  `memory._matchers` is module-level state; registrations leak across tests and libraries, and `clear_matchers()` removes built-ins with no way to restore them.
-  *Fix:* add `reset_matchers()` (re-registers built-ins); consider an instance-based `MatcherRegistry` with module functions delegating to a default instance.
-  *Verify:* `clear_matchers(); reset_matchers()` restores exact/normalized behavior; autouse fixture isolates tests.
-
 - **A3. Overlay dicts are stringly typed** (S)
   `_text_overlays` entries are raw dicts with a `type` discriminator (`core.py:502`).
   *Fix:* small `@dataclass TextOverlay` / `BoxOverlay` / `ImageOverlay`; makes `pending_operations` richer for free (pairs with C12).
@@ -132,6 +127,7 @@ From this improvement plan (completed 2026-07-20, unreleased):
 - **U6** - `defaults add <key> <value>` appends to a list default (creates a one-element list if absent, promotes an existing string leaf to a two-element list); new `_add_nested` helper backs it
 - **U9** - Unified read-only output via a shared `_write_output(text, path)` helper; `list`, `export`, and `template` all default to stdout and accept `-o`; `template` no longer requires `-o`
 - **A4** - CLI dispatch now uses `set_defaults(func=...)` per subparser and calls `args.func(args)`; the command if-chain is gone (one special case remains for the `defaults` no-action help). Internal refactor, no user-facing change
+- **A2** - Added `reset_matchers()` (exported from `pdfiller`) restoring the built-in exact/normalized matchers; added an autouse `_isolate_matchers` conftest fixture so matcher-registry state no longer leaks across tests
 
 From this improvement plan (completed 2026-07-20, released as 1.2.0):
 

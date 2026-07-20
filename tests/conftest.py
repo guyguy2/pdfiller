@@ -9,6 +9,20 @@ from pathlib import Path
 import fitz
 import pytest
 
+from pdfiller.memory import reset_matchers
+
+
+@pytest.fixture(autouse=True)
+def _isolate_matchers():
+    """Restore the built-in matcher registry before and after every test.
+
+    The matcher registry is module-level state; without this, a test that
+    registers or clears matchers would leak into unrelated tests.
+    """
+    reset_matchers()
+    yield
+    reset_matchers()
+
 
 def _make_png() -> bytes:
     """Create a minimal valid 1x1 PNG image."""

@@ -268,6 +268,17 @@ def clear_matchers() -> None:
     _matchers.clear()
 
 
+def reset_matchers() -> None:
+    """Restore the registry to just the built-in matchers.
+
+    Clears any custom registrations and re-registers the exact and normalized
+    matchers, returning matching behavior to a known baseline. Useful for test
+    isolation after code has registered or cleared matchers.
+    """
+    _matchers.clear()
+    _register_default_matchers()
+
+
 # -- Built-in matchers --
 
 

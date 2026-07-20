@@ -19,6 +19,7 @@ from .memory import (
     load_defaults,
     match_field_to_defaults,
     register_matcher,
+    reset_matchers,
     save_defaults,
     unregister_matcher,
     validate_defaults,
@@ -41,5 +42,6 @@ __all__ = [
     "unregister_matcher",
     "list_matchers",
     "clear_matchers",
+    "reset_matchers",
     "build_alias_matcher",
 ]

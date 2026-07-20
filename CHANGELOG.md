@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `defaults add <key> <value>` appends a value to a list default, creating a one-element list if the key is absent and promoting an existing string leaf to a two-element list; multi-value defaults no longer require hand-editing JSON
 - `template` now prints to stdout when `-o/--output` is omitted, matching `list` and `export`
+- `reset_matchers()` restores the matcher registry to just the built-in exact and normalized matchers (exported from `pdfiller`); useful for undoing `clear_matchers()` or custom registrations
 
 ### Changed
 

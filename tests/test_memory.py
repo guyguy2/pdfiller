@@ -19,6 +19,7 @@ from pdfiller.memory import (
     load_defaults,
     match_field_to_defaults,
     register_matcher,
+    reset_matchers,
     save_defaults,
     unregister_matcher,
     validate_defaults,
@@ -479,6 +480,22 @@ class TestMatcherRegistry:
 
         result = match_field_to_defaults("anything", {})
         assert result == "first"
+
+    def test_reset_matchers_restores_builtins_after_clear(self):
+        """reset_matchers() rebuilds the exact/normalized baseline."""
+        clear_matchers()
+        assert list_matchers() == []
+
+        reset_matchers()
+        assert list_matchers() == ["exact", "normalized"]
+        assert match_field_to_defaults("first_name", {"first_name": "Guy"}) == "Guy"
+
+    def test_reset_matchers_drops_custom_registrations(self):
+        register_matcher("custom", lambda f, d: "x")
+        assert "custom" in list_matchers()
+
+        reset_matchers()
+        assert list_matchers() == ["exact", "normalized"]
 
 
 # -- Tests for field aliases (7.1) --
