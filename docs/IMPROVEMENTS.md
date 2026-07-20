@@ -57,11 +57,6 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 ## 5. Packaging, Tooling, and Tests
 
-- **P4. No `py.typed` marker** (S)
-  Type hints exist throughout but type checkers ignore installed packages without `py.typed`.
-  *Fix:* add marker file; consider running mypy/pyright locally.
-  *Verify:* `pyright` resolves `PDFFiller` types from an installed wheel.
-
 - **P5. Python 3.8 is EOL** (M)
   3.8 (EOL Oct 2024) forces `Optional[X]`/`Dict` syntax and blocks modern PyMuPDF.
   *Fix:* bump `requires-python` to >=3.9 (or 3.10); modernize annotations opportunistically; CHANGELOG entry.
@@ -71,10 +66,6 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
   Canonical import is now `import pymupdf`; `import fitz` is the deprecated alias.
   *Fix:* switch when bumping the PyMuPDF floor (pair with P5).
   *Verify:* no `import fitz` remains; tests pass.
-
-- **P7. No coverage measurement** (S)
-  *Fix:* add `pytest-cov` to dev group so gaps like the C5 overflow paths become visible.
-  *Verify:* `uv run pytest --cov=pdfiller` produces a coverage report.
 
 - **P8. Example PDFs may contain real data** (S) - partially done 2026-07-20
   Inspection confirmed `examples/680-001_AB_filled.pdf` contains real PII (names, DOB, phone). Neither PDF was ever committed, so no history scrub is needed. `examples/*_filled.pdf` is now in .gitignore.
@@ -120,6 +111,8 @@ From this improvement plan (completed 2026-07-20, unreleased):
 - **A2** - Added `reset_matchers()` (exported from `pdfiller`) restoring the built-in exact/normalized matchers; added an autouse `_isolate_matchers` conftest fixture so matcher-registry state no longer leaks across tests
 - **A6** - New `pdfiller/fields.py` centralizes widget-type predicates (`is_choice_widget`, `is_checkbox`, `is_checkbox_type`, `is_push_button_type`); `core` and `cli` import them, removing the duplicated choice tuples and CLI `_CHECKBOX_FIELD_TYPES`/`_PUSH_BUTTON_FIELD_TYPES`. Internal refactor, no user-facing change
 - **S2** - `fill --redact` masks field values in `--verbose`/`--dry-run` output (shows names and `[redacted, N chars]`), keeping values out of logs and shell history; overlay text is redacted too
+- **P4** - Added `pdfiller/py.typed` marker (ships in the wheel) so type checkers use the package's inline hints
+- **P7** - Added `pytest-cov` to the dev group; `uv run pytest --cov=pdfiller` reports coverage (currently ~90%)
 
 From this improvement plan (completed 2026-07-20, released as 1.2.0):
 

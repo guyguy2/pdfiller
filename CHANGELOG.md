@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `template` now prints to stdout when `-o/--output` is omitted, matching `list` and `export`
 - `reset_matchers()` restores the matcher registry to just the built-in exact and normalized matchers (exported from `pdfiller`); useful for undoing `clear_matchers()` or custom registrations
 - `fill --redact` masks field values in `--verbose` and `--dry-run` output, printing field names and value lengths (`[redacted, N chars]`) instead of the values, so scripted or CI runs do not leak values into logs and shell history
+- `py.typed` marker so type checkers pick up the package's inline type hints when it is installed as a dependency
+- `pytest-cov` in the dev dependency group; run `uv run pytest --cov=pdfiller` for a coverage report
 
 ### Changed
 

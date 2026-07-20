@@ -30,6 +30,7 @@ pdfiller = "pdfiller.cli:main"
 [dependency-groups]
 dev = [
     "pytest",
+    "pytest-cov",
     "ruff",
 ]
 
