@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-07-22
+
+### Added
+
+- Rich CLI output (F5): `list --format table` uses a rich table (Name/Type/Page/Value/Options); `fill --dry-run` and `--verbose` show Field/Value tables; `batch` shows a progress bar on interactive stderr. JSON/CSV list formats and machine-readable status lines are unchanged. New runtime dependency: `rich`
+
 ## [1.4.0] - 2026-07-20
 
 ### Added

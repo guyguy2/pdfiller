@@ -75,7 +75,8 @@ class TestListCommand:
         assert result.returncode == 0
         content = out.read_text()
         assert "first_name" in content
-        assert "Type:" in content
+        assert "Type" in content
+        assert "Name" in content
 
     def test_list_missing_pdf(self, tmp_path):
         result = run_cli("list", "-i", str(tmp_path / "nope.pdf"))
@@ -178,7 +179,8 @@ class TestFillCommand:
         )
         assert result.returncode == 0
         assert "Dry run" in result.stdout
-        assert "first_name = Alice" in result.stdout
+        assert "first_name" in result.stdout
+        assert "Alice" in result.stdout
 
     def test_dry_run_redact_masks_values(self, fillable_pdf):
         result = run_cli(
@@ -251,8 +253,9 @@ class TestFillCommand:
             "--dry-run",
         )
         assert result.returncode == 0
-        assert "sign_date = [auto-date: today]" in result.stdout
-        assert "date_signed = [auto-date: today]" in result.stdout
+        assert "sign_date" in result.stdout
+        assert "date_signed" in result.stdout
+        assert "[auto-date: today]" in result.stdout
         assert "date_of_birth" not in result.stdout
 
     def test_dry_run_no_auto_dates_hides_auto_date_fields(self, fillable_pdf_with_dates):
@@ -312,7 +315,8 @@ class TestFillCommand:
         )
         assert result.returncode == 0
         assert "Fill plan" in result.stdout
-        assert "first_name = Alice" in result.stdout
+        assert "first_name" in result.stdout
+        assert "Alice" in result.stdout
         assert "Done:" in result.stdout
 
     def test_verbose_shows_checkboxes(self, fillable_pdf, tmp_path):
@@ -328,7 +332,8 @@ class TestFillCommand:
             "-v",
         )
         assert result.returncode == 0
-        assert "agree_terms [check]" in result.stdout
+        assert "agree_terms" in result.stdout
+        assert "[checked]" in result.stdout
 
     def test_strict_missing_field_exits(self, fillable_pdf, tmp_path):
         out = tmp_path / "filled.pdf"
@@ -928,8 +933,10 @@ class TestFillWithDefaults:
             env=env,
         )
         assert result.returncode == 0
-        assert "first_name = DefaultGuy" in result.stdout
-        assert "email = guy@example.com" in result.stdout
+        assert "first_name" in result.stdout
+        assert "DefaultGuy" in result.stdout
+        assert "email" in result.stdout
+        assert "guy@example.com" in result.stdout
 
     def test_fill_field_overrides_default(self, fillable_pdf, tmp_path):
         defaults_file = tmp_path / "defaults.json"
@@ -953,7 +960,9 @@ class TestFillWithDefaults:
         )
         assert result.returncode == 0
         # The -f override should take precedence over the default
-        assert "first_name = Override" in result.stdout
+        assert "first_name" in result.stdout
+        assert "Override" in result.stdout
+        assert "DefaultGuy" not in result.stdout
 
     def test_fill_defaults_skips_list_values(self, fillable_pdf, tmp_path):
         defaults_file = tmp_path / "defaults.json"
@@ -977,9 +986,11 @@ class TestFillWithDefaults:
             env=env,
         )
         assert result.returncode == 0
-        assert "first_name = Guy" in result.stdout
-        # email has multiple values - should be skipped
-        assert "email" not in result.stdout
+        assert "first_name" in result.stdout
+        assert "Guy" in result.stdout
+        # email has multiple values - should be skipped (and not appear as a field row)
+        assert "a@example.com" not in result.stdout
+        assert "b@example.com" not in result.stdout
 
 
 class TestBatchCommand:

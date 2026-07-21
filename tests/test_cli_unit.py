@@ -17,6 +17,7 @@ from pdfiller.cli import (
     _format_fields_csv,
     _format_fields_json,
     _format_fields_table,
+    _ops_rows,
     _queue_overlays,
     defaults_command,
     export_command,
@@ -86,20 +87,19 @@ class TestFormatFieldsTable:
 
     def test_includes_types(self):
         output = _format_fields_table(SAMPLE_FIELDS, "form.pdf")
-        assert "Type: Text" in output
-        assert "Type: CheckBox" in output
+        assert "Text" in output
+        assert "CheckBox" in output
+        # Column header from rich table
+        assert "Type" in output
 
     def test_includes_existing_value(self):
         output = _format_fields_table(SAMPLE_FIELDS, "form.pdf")
-        assert "Current value: Smith" in output
+        assert "Smith" in output
 
-    def test_omits_empty_value(self):
+    def test_empty_value_still_lists_field(self):
         output = _format_fields_table(SAMPLE_FIELDS, "form.pdf")
-        # first_name has empty value - should not show "Current value" for it
-        lines = output.split("\n")
-        first_name_idx = next(i for i, line in enumerate(lines) if "first_name" in line)
-        # The line after "first_name" should show Type, not Current value
-        assert "Type:" in lines[first_name_idx + 1]
+        # first_name has empty value but still appears as a row
+        assert "first_name" in output
 
     def test_empty_fields_list(self):
         output = _format_fields_table([], "empty.pdf")
@@ -108,7 +108,8 @@ class TestFormatFieldsTable:
     def test_includes_page(self):
         fields = [{"name": "sig", "type": "Text", "value": "", "page": 2}]
         output = _format_fields_table(fields, "form.pdf")
-        assert "Page: 2" in output
+        assert "2" in output
+        assert "Page" in output
 
     def test_includes_options_for_choice_fields(self):
         fields = [
@@ -121,11 +122,41 @@ class TestFormatFieldsTable:
             }
         ]
         output = _format_fields_table(fields, "form.pdf")
-        assert "Options: [CA, NY, TX]" in output
+        assert "CA" in output
+        assert "NY" in output
+        assert "TX" in output
 
-    def test_omits_options_when_absent(self):
+    def test_omits_option_values_when_absent(self):
         output = _format_fields_table(SAMPLE_FIELDS, "form.pdf")
-        assert "Options:" not in output
+        # Header may still say Options; sample fields have no option values
+        assert "CA" not in output
+        assert "NY" not in output
+
+
+class TestOpsRows:
+    def test_fields_checks_and_auto_dates(self):
+        ops = {
+            "fields": {"first_name": "Alice"},
+            "check": ["agree_terms"],
+            "uncheck": ["newsletter"],
+            "auto_date_fields": ["sign_date"],
+        }
+        rows = _ops_rows(ops, {}, redact=False)
+        assert ("first_name", "Alice") in rows
+        assert ("agree_terms", "[checked]") in rows
+        assert ("newsletter", "[unchecked]") in rows
+        assert ("sign_date", "[auto-date: today]") in rows
+
+    def test_redact_masks_field_values(self):
+        ops = {"fields": {"ssn": "12345"}, "check": [], "uncheck": []}
+        rows = _ops_rows(ops, {}, redact=True)
+        assert rows == [("ssn", "[redacted, 5 chars]")]
+
+    def test_includes_overlay_descriptions(self):
+        ops = {"fields": {}, "check": [], "uncheck": []}
+        data = {"texts": [{"text": "Guy", "x": 10, "y": 20, "page": 0}]}
+        rows = _ops_rows(ops, data, redact=False)
+        assert any("Guy" in field for field, _ in rows)
 
 
 class TestFormatFieldsJson:
@@ -445,7 +476,8 @@ class TestFillCommand:
         filler.save.assert_not_called()
         out = capsys.readouterr().out
         assert "Dry run" in out
-        assert "first_name = Alice" in out
+        assert "first_name" in out
+        assert "Alice" in out
 
     def test_dry_run_empty_fields(self, capsys):
         filler = _make_filler_mock(
@@ -469,7 +501,8 @@ class TestFillCommand:
             fill_command(args)
 
         out = capsys.readouterr().out
-        assert "agree_terms = [checked]" in out
+        assert "agree_terms" in out
+        assert "[checked]" in out
 
     def test_verbose_output(self, capsys):
         filler = _make_filler_mock(
@@ -486,8 +519,10 @@ class TestFillCommand:
 
         out = capsys.readouterr().out
         assert "Fill plan" in out
-        assert "first_name = Alice" in out
-        assert "agree_terms [check]" in out
+        assert "first_name" in out
+        assert "Alice" in out
+        assert "agree_terms" in out
+        assert "[checked]" in out
         assert "Auto-fill dates: enabled" in out
 
     def test_no_auto_dates_flag(self, capsys):

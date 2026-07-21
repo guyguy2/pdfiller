@@ -12,11 +12,20 @@ import sys
 from pathlib import Path
 from typing import Any, Optional
 
+from rich.console import Console
+from rich.markup import escape
+from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeElapsedColumn
+from rich.table import Table
+
 from .config import Config, default_output_path, load_config
 from .core import PDFFiller
 from .exceptions import PDFFillerError
 from .fields import is_checkbox_type, is_push_button_type
 from .memory import flatten_defaults, load_defaults, match_field_to_defaults, save_defaults
+
+# Shared consoles: stdout for tables/status, stderr for progress (keeps stdout clean).
+_stdout_console = Console(highlight=False)
+_stderr_console = Console(stderr=True, highlight=False)
 
 # Required keys per overlay section in the fill JSON schema
 _OVERLAY_REQUIRED_KEYS = {
@@ -172,19 +181,75 @@ def _write_output(text: str, path: Optional[str]) -> None:
 
 
 def _format_fields_table(fields, input_path: str) -> str:
-    """Format fields as a human-readable table."""
-    lines = [f"\nFound {len(fields)} fields in {input_path}:\n"]
+    """Format fields as a human-readable rich table (plain text, no color).
+
+    Returned as a string so callers can write to a file or stdout via
+    ``_write_output``. Color is disabled so file captures stay clean.
+    """
+    table = Table(
+        title=f"Found {len(fields)} fields in {input_path}",
+        show_header=True,
+        header_style="bold",
+        expand=False,
+    )
+    table.add_column("Name", style="cyan", no_wrap=True)
+    table.add_column("Type")
+    table.add_column("Page", justify="right")
+    table.add_column("Value")
+    table.add_column("Options")
+
     for field in fields:
-        lines.append(f"  - {field['name']}")
-        lines.append(f"    Type: {field['type']}")
-        if "page" in field:
-            lines.append(f"    Page: {field['page']}")
-        if field.get("options"):
-            lines.append(f"    Options: [{', '.join(field['options'])}]")
-        if field["value"]:
-            lines.append(f"    Current value: {field['value']}")
-        lines.append("")
-    return "\n".join(lines)
+        options = field.get("options") or []
+        page = field.get("page", "")
+        page_str = "" if page == "" or page is None else str(page)
+        table.add_row(
+            escape(field["name"]),
+            escape(field.get("type", "")),
+            page_str,
+            escape(str(field.get("value") or "")),
+            escape(", ".join(options) if options else ""),
+        )
+
+    buf = io.StringIO()
+    console = Console(file=buf, force_terminal=False, width=120, highlight=False)
+    console.print(table)
+    return buf.getvalue()
+
+
+def _ops_rows(ops: dict[str, Any], data: dict[str, Any], redact: bool) -> list[tuple[str, str]]:
+    """Build (field, value) rows for dry-run / verbose fill plans."""
+    rows: list[tuple[str, str]] = []
+    for name, value in (ops.get("fields") or {}).items():
+        shown = _redact_value(value) if redact else str(value)
+        rows.append((name, shown))
+    for name in ops.get("check") or []:
+        rows.append((name, "[checked]"))
+    for name in ops.get("uncheck") or []:
+        rows.append((name, "[unchecked]"))
+    for name in ops.get("auto_date_fields") or []:
+        rows.append((name, "[auto-date: today]"))
+    for line in _describe_overlays(data, redact=redact):
+        # Overlay lines already look like "text '...' at ..."
+        rows.append((line, ""))
+    return rows
+
+
+def _print_ops_table(title: str, rows: list[tuple[str, str]], empty_msg: str) -> None:
+    """Print a Field/Value table for fill dry-run or verbose plans.
+
+    Cell text is escaped so values like ``[checked]`` or ``[redacted, N chars]``
+    are not interpreted as rich markup.
+    """
+    _stdout_console.print(f"[bold]{escape(title)}[/bold]")
+    if not rows:
+        _stdout_console.print(f"  {escape(empty_msg)}")
+        return
+    table = Table(show_header=True, header_style="bold", expand=False)
+    table.add_column("Field", style="cyan", no_wrap=True)
+    table.add_column("Value", overflow="fold")
+    for field, value in rows:
+        table.add_row(escape(str(field)), escape(str(value)))
+    _stdout_console.print(table)
 
 
 def _format_fields_json(fields) -> str:
@@ -338,56 +403,32 @@ def fill_command(args):
 
             # Dry run: show what would be filled without saving
             if args.dry_run:
-                auto_date_fields = ops.get("auto_date_fields", [])
-                unchecks = ops.get("uncheck", [])
-                print(f"Dry run for {args.input}:")
-                if ops["fields"]:
-                    for name, value in ops["fields"].items():
-                        shown = _redact_value(value) if redact else value
-                        print(f"  {name} = {shown}")
-                if ops["check"]:
-                    for name in ops["check"]:
-                        print(f"  {name} = [checked]")
-                for name in unchecks:
-                    print(f"  {name} = [unchecked]")
-                for name in auto_date_fields:
-                    print(f"  {name} = [auto-date: today]")
-                overlay_lines = _describe_overlays(data, redact=redact)
-                for line in overlay_lines:
-                    print(f"  {line}")
-                if not any(
-                    [ops["fields"], ops["check"], unchecks, auto_date_fields, overlay_lines]
-                ):
-                    print("  (no fields to fill)")
+                rows = _ops_rows(ops, data, redact=redact)
+                _print_ops_table(f"Dry run for {args.input}:", rows, "(no fields to fill)")
                 return
 
             # Verbose output before save
             verbose = getattr(args, "verbose", False)
             if verbose:
-                print(f"Fill plan for {args.input}:")
-
-                if ops["fields"]:
-                    print("  Fields:")
-                    for name, value in ops["fields"].items():
-                        shown = _redact_value(value) if redact else value
-                        print(f"    {name} = {shown}")
-
-                if ops["check"]:
-                    print("  Checkboxes:")
-                    for name in ops["check"]:
-                        print(f"    {name} [check]")
-
-                overlay_lines = _describe_overlays(data, redact=redact)
-                if overlay_lines:
-                    print("  Overlays:")
-                    for line in overlay_lines:
-                        print(f"    {line}")
-
+                # Exclude auto-date from the main table when dates are off; when
+                # on, list them under a note so the plan matches save behavior.
+                plan_ops = {
+                    "fields": ops.get("fields") or {},
+                    "check": ops.get("check") or [],
+                    "uncheck": ops.get("uncheck") or [],
+                    "auto_date_fields": [],
+                }
+                rows = _ops_rows(plan_ops, data, redact=redact)
+                _print_ops_table(f"Fill plan for {args.input}:", rows, "(no fields to fill)")
                 if filler.auto_fill_dates:
-                    print("  Auto-fill dates: enabled (empty date fields will use today's date)")
-                    auto_date_fields = ops.get("auto_date_fields", [])
-                    for name in auto_date_fields:
-                        print(f"    {name} = [auto-date: today]")
+                    _stdout_console.print(
+                        "  [dim]Auto-fill dates: enabled "
+                        "(empty date fields will use today's date)[/dim]"
+                    )
+                    for name in ops.get("auto_date_fields") or []:
+                        _stdout_console.print(
+                            f"    [cyan]{escape(name)}[/cyan] = {escape('[auto-date: today]')}"
+                        )
 
             # Save the filled PDF
             saved_path = filler.save(output_path, flatten=flatten)
@@ -400,10 +441,12 @@ def fill_command(args):
                         if redact
                         else f"'{entry['existing_value']}'"
                     )
+                    # Plain text so path-like values and quotes stay intact
                     print(f"  Skipped {entry['field']} (kept existing value {existing})")
             summary = f"{filled_count} fields, {checked_count} checkboxes"
             if overlay_count:
                 summary += f", {overlay_count} overlays"
+            # Plain print: long paths must not soft-wrap mid-token for scripts/tests
             print(f"Done: {saved_path} ({summary})")
 
     except PDFFillerError as e:
@@ -673,7 +716,8 @@ def batch_command(args):
         else (config.flatten if config.flatten is not None else True)
     )
 
-    for i, row in enumerate(rows, start=1):
+    def _fill_row(i: int, row) -> None:
+        nonlocal filled
         output_file = _batch_output_path(output_dir, stem, row, name_from, i, used_names)
         try:
             with PDFFiller(
@@ -700,6 +744,24 @@ def batch_command(args):
             filled += 1
         except Exception as e:
             errors.append((i, str(e)))
+
+    # Progress bar on stderr when interactive; quiet loop in pipes/CI/tests.
+    if _stderr_console.is_terminal:
+        with Progress(
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=_stderr_console,
+            transient=True,
+        ) as progress:
+            task_id = progress.add_task("Batch fill", total=len(rows))
+            for i, row in enumerate(rows, start=1):
+                _fill_row(i, row)
+                progress.advance(task_id)
+    else:
+        for i, row in enumerate(rows, start=1):
+            _fill_row(i, row)
 
     print(f"Filled {filled} PDFs from {csv_path.name}")
     if errors:

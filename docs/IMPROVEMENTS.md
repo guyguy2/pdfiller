@@ -10,7 +10,7 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 
 ---
 
-## Status (2026-07-20)
+## Status (2026-07-22)
 
 | Area | State |
 |------|--------|
@@ -18,12 +18,13 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more.
 | **A5** `fill()` box/image placements | **Done**, released in **1.3.0** |
 | **P8** example / PII hygiene | **Done**, released in **1.3.0** |
 | **F6** user config.toml | **Done**, released in **1.4.0** |
-| Package version | **1.4.0** |
-| Working tree expectation | Clean after 1.4.0 commit |
-| Tests | 394 pass (`uv run pytest tests/ -q`); keep ruff clean |
-| Remaining product backlog | F1-F5, F7-F13 (section 7) |
+| **F5** Rich CLI output | **Done**, released in **1.5.0** |
+| Package version | **1.5.0** |
+| Working tree expectation | Clean |
+| Tests | 397 pass (`uv run pytest tests/ -q`); keep ruff clean |
+| Remaining product backlog | F1-F4, F7-F13 (section 7) |
 
-All review-plan items and F6 are complete. No required next step; product features are optional.
+All review-plan items, F6, and F5 are complete. No required next step; remaining product features are optional.
 
 ---
 
@@ -33,12 +34,19 @@ No open ship queue. If continuing product work, pick from section 7 (opportunist
 
 | Order | Item | Notes |
 |-------|------|--------|
-| 1 | F5 Rich CLI | Tables/progress; low risk UX polish |
-| 2 | F4 Field grouping | Builds on defaults / batch mental model |
-| 3 | F1 PDF/A | Compliance-oriented; needs research |
+| 1 | F4 Field grouping | Builds on defaults / batch mental model |
+| 2 | F1 PDF/A | Compliance-oriented; needs research |
 | - | F2, F3, F7-F13 | Larger or niche; only if a real need appears |
 
 Per-item workflow: implement, tests, `uv run pytest tests/ -q` + ruff, CHANGELOG, move item to appendix, commit.
+
+### F5 reference (unreleased)
+
+- Runtime dep: `rich>=15`
+- `list --format table`: rich Table (Name, Type, Page, Value, Options); json/csv unchanged
+- `fill --dry-run` / `--verbose`: Field/Value rich table; cell text escaped so `[checked]` / `[redacted, N chars]` are literal
+- `batch`: progress bar on interactive stderr (`transient=True`); final `Filled N PDFs...` on stdout unchanged
+- Helpers: `_format_fields_table`, `_ops_rows`, `_print_ops_table`
 
 ### F6 reference (released 1.4.0)
 
@@ -102,7 +110,6 @@ Dependency: `tomli` only for Python &lt; 3.11 (stdlib `tomllib` on 3.11+).
 - **F2. Watch mode** - monitor a directory, auto-fill new PDFs using a template
 - **F3. Conditional logic** - fill field B only if field A has value X (medical/legal forms)
 - **F4. Field grouping** - group related fields (address block) for batch operations
-- **F5. Rich CLI output** - `rich` library for tables, progress bars, color
 
 ### Long-term (significant effort)
 
@@ -117,6 +124,17 @@ Dependency: `tomli` only for Python &lt; 3.11 (stdlib `tomllib` on 3.11+).
 ---
 
 ## Session log (recent)
+
+### 2026-07-22 - Ship F5 as 1.5.0
+
+- Released **1.5.0** containing Rich CLI feature (F5).
+- All review-plan items, F6, and F5 are shipped. Working tree clean.
+
+### 2026-07-20 - Implement F5 (Rich CLI)
+
+- Added `rich` runtime dependency.
+- `list` table format, `fill` dry-run/verbose, and interactive `batch` progress use rich tables/progress.
+- Tests + CHANGELOG; shipped in 1.5.0.
 
 ### 2026-07-20 - Ship F6 as 1.4.0
 
@@ -148,6 +166,10 @@ Dependency: `tomli` only for Python &lt; 3.11 (stdlib `tomllib` on 3.11+).
 ---
 
 ## Appendix: Completed Items
+
+### Released as 1.5.0 (2026-07-22)
+
+- **F5** - Rich CLI: `list --format table` is a rich Table (Name/Type/Page/Value/Options); `fill --dry-run` and `--verbose` print Field/Value tables with markup-escaped cell values; `batch` shows a stderr progress bar when interactive; dependency `rich>=15`; json/csv and status strings unchanged for scripts
 
 ### Released as 1.4.0 (2026-07-20)
 
