@@ -4,18 +4,48 @@ Last updated: 2026-07-22. Full log: `docs/IMPROVEMENTS.md`.
 
 ## Snapshot
 
-- Branch `main`; version **1.5.0**; **F5** Rich CLI shipped.
-- Review C/U/A/P/S, F6, F5: **Done**. Product backlog: F1-F4, F7-F13.
-- Tests: 397 pass (`uv run pytest tests/ -q`); `ruff` clean.
-- Working tree: Clean.
+- **Branch**: `main`
+- **Version**: **1.5.0** (Rich CLI formatting shipped)
+- **Review Queue**: All C/U/A/P/S review items, F6, and F5 are **Done**.
+- **Working Tree**: Clean (`git status` clean).
+- **Tests**: 397 passing (`uv run pytest tests/ -q`); `uv run ruff check .` clean.
 
-## Next work
+## Priority Task for Next Session: F4 Field Grouping
 
-Optional product picks: F4 (Field grouping), F1 (PDF/A), or other F*.
+### Goal
+Implement **F4 (Field Grouping)** to allow users to group related fields (e.g., `address_block` -> `street`, `city`, `state`, `zip`) for batch population, defaults reuse, and CLI operations.
 
-- **F4. Field grouping**: Group related fields (e.g. address blocks) for defaults / batch operations.
-- **F1. PDF/A output**: Archival/compliance PDF standard options.
+### Proposed Design / Plan for F4
+1. **Schema/Storage**:
+   - Extend stored defaults (`_meta.groups` in `defaults.json`) or `Config` to define group mappings:
+     ```json
+     {
+       "_meta": {
+         "groups": {
+           "address": ["street_address", "city", "state", "zip_code"]
+         }
+       }
+     }
+     ```
+2. **API**:
+   - Add `pdfiller.memory` functions: `register_group(name, fields)`, `get_group(name)`, `list_groups()`.
+   - Update `match_field_to_defaults` or `fill()` to resolve grouped key-values.
+3. **CLI**:
+   - Add subcommands under `defaults group` (or `--group` flags in `fill`/`batch`).
+4. **Verification**:
+   - Unit tests in `tests/test_memory.py` and `tests/test_cli.py`.
+   - Ensure `uv run pytest tests/ -q` passes and `ruff check .` stays clean.
 
-## F5 summary (released 1.5.0)
+---
 
-`rich` tables for `list` (table format) and `fill` dry-run/verbose; batch progress on TTY stderr. Values with brackets are markup-escaped. JSON/CSV and `Done:` / `Filled N` lines stay plain for scripts.
+## Alternative Backlog Picks
+
+If not starting F4:
+- **F1. PDF/A output**: Add options for legal/archival PDF compliance standards.
+- **F2. Watch mode**: Monitor directory for auto-filling new PDFs.
+
+---
+
+## Session Verification Checklist
+- Run tests: `uv run pytest tests/ -q`
+- Run linter: `uv run ruff check .`
