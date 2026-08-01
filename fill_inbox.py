@@ -69,7 +69,7 @@ def fill_one(pdf_path: Path, output_dir: Path, defaults: dict) -> None:
     print(f"\n=== {pdf_path.name} ===")
     with PDFFiller(pdf_path) as filler:
         if not filler.has_form_fields():
-            print("  Not a fillable form - skipping (use /fill-pdf for scanned/overlay forms).")
+            print(f"  Not a fillable form - run: /fill-pdf {pdf_path}")
             return
 
         fields = filler.list_fields()
