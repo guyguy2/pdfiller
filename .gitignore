@@ -9,7 +9,8 @@ build/
 .coverage
 *.temp.pdf
 scratch/
-examples/*_filled.pdf
+*_filled.pdf
+.DS_Store
 # Real-world forms kept locally for manual fills; do not ship (may attract PII fills)
 examples/680-001_AB.pdf
 # Local agent/tooling state, not package source
