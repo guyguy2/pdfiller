@@ -13,6 +13,8 @@ scratch/
 .DS_Store
 # Real-world forms kept locally for manual fills; do not ship (may attract PII fills)
 examples/680-001_AB.pdf
+# Inbox for fill_inbox.py - source and filled PDFs may contain PII
+/inbox/
 # Local agent/tooling state, not package source
 .claude/skills/
 .firecrawl/

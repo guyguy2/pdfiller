@@ -4,7 +4,7 @@
 # a signature. See fill_inbox.py for the per-field logic.
 #
 # Usage: ./fill_inbox.sh [inbox_dir]
-#   inbox_dir defaults to ~/pdfiller-inbox
+#   inbox_dir defaults to <project_dir>/inbox
 #
 # Only fillable (AcroForm) PDFs are handled; non-fillable (scanned) PDFs
 # are skipped - use the interactive /fill-pdf workflow for those.
@@ -12,7 +12,7 @@
 set -euo pipefail
 
 PDFILLER_DIR="/Users/guy/dev/automation/python/pdfiller"
-INBOX="${1:-$HOME/pdfiller-inbox}"
+INBOX="${1:-$PDFILLER_DIR/inbox}"
 
 if [ ! -d "$INBOX" ]; then
     echo "Error: inbox directory not found: $INBOX" >&2

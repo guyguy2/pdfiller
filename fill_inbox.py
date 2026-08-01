@@ -8,7 +8,7 @@ separately (path to an image, or skip). Non-fillable PDFs are skipped -
 those need the coordinate-overlay workflow (see /fill-pdf) instead.
 
 Usage: fill_inbox.py [inbox_dir]
-  inbox_dir defaults to ~/pdfiller-inbox
+  inbox_dir defaults to <project_dir>/inbox
 """
 
 import sys
@@ -110,7 +110,7 @@ def fill_one(pdf_path: Path, output_dir: Path, defaults: dict) -> None:
 
 
 def main():
-    inbox = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.home() / "pdfiller-inbox"
+    inbox = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent / "inbox"
     output_dir = inbox / "filled"
     output_dir.mkdir(parents=True, exist_ok=True)
 
