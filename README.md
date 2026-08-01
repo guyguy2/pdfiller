@@ -91,6 +91,14 @@ pdfiller fill -i form.pdf -j values.json -o filled.pdf --preserve-existing
 pdfiller fill -i scan.pdf -j values.json -o filled.pdf
 ```
 
+## Claude Code Integration
+
+This repo includes a `/fill-pdf` skill for Claude Code that automates the fill workflow end-to-end: it inspects the PDF, loads your saved defaults, shows a plan of what will be auto-filled vs. what it needs from you, asks before placing any signature, then fills and saves the result. See `CLAUDE.md` for the full workflow it follows.
+
+```
+/fill-pdf path/to/form.pdf
+```
+
 ## API Reference
 
 ### PDFFiller Class
